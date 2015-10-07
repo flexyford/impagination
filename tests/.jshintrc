@@ -1,11 +1,12 @@
 {
   "predef": [
+    "server",
     "document",
     "window",
     "location",
     "setTimeout",
     "$",
-    "-Promise",
+    "Promise",
     "define",
     "console",
     "visit",
