@@ -124,7 +124,10 @@ export default class Dataset {
     // let pageSize = this._pageSize;
 
     return this._fetch.call(this, offset, stats).then((records) => {
-      this.state.pages[offset] = page.resolve(records);
+      // Ensure page has not changed state since fetch request was made
+      if(page === this.state.pages[offset]) {
+        this.state.pages[offset] = page.resolve(records);
+      }
     });
   }
 }

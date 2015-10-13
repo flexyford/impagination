@@ -80,8 +80,6 @@ describe("Dataset", function() {
         expect(this.dataset.state.totalSize).to.equal(0);
       });
     });
-
-
   });
 
   describe("loading pages", function() {
@@ -277,6 +275,95 @@ describe("Dataset", function() {
             expect(afterOffsetResolvedPages.records[0].name).to.equal('Record 10');
           });
         });
+      });
+    });
+
+    describe("not resolving a fetched page", function() {
+      beforeEach(function() {
+        this.totalPages = 5;
+        this.recordsPerPage = 10;
+        this.pages = [];
+        this.resolvers = [];
+
+        for(var i = 0; i < this.totalPages; i+=1){
+          var records = this.server.createList('record', this.recordsPerPage);
+          this.pages.push( this.server.create('page', {records: records}) );
+        }
+
+        this.options = {
+          pageSize: this.recordsPerPage,
+          loadHorizon: 1,
+          unloadHorizon: 1,
+          fetch: () => {
+            return new Ember.RSVP.Promise((resolve) => {
+              this.resolvers.push(resolve);
+            });
+          }
+        };
+        this.dataset = new Dataset(this.options);
+      });
+
+      it("captures the resolve", function() {
+        var resolve = this.resolvers[0];
+        expect(resolve.name).to.equal('resolvePromise');
+      });
+
+      it("leaves the first page in a pending state", function() {
+        var page = this.dataset.state.pages[0];
+        expect(page.isPending).to.be.true;
+      });
+
+      describe("advancing the readOffset past the pending pages unloadHorizon", function() {
+        beforeEach(function() {
+          this.dataset.setReadOffset(2);
+        });
+
+        it("unloads the pending page", function () {
+          var page = this.dataset.state.pages[0];
+          expect(page.isRequested).to.be.false;
+          expect(page.isPending).to.be.false;
+        });
+
+        describe("resolving all pages", function() {
+          beforeEach(function() {
+            var records = this.server.createList('record', this.recordsPerPage);
+            this.resolvers.forEach(function(resolve) {
+              resolve(records);
+            });
+          });
+
+          describe("the pages which did change state since last fetch request", function() {
+            beforeEach(function() {
+              this.changedStatePage = this.dataset.state.pages.slice(0,1);
+            });
+
+            it("is not resolved", function () {
+              this.changedStatePage.forEach(function (page) {
+                expect(page.isResolved).to.be.false;
+              });
+            });
+            it("remains unrequested", function () {
+              this.changedStatePage.forEach(function (page) {
+                expect(page.isRequested).to.be.false;
+              });
+            });
+          });
+
+          describe("the pages which did not change state since last fetch request", function() {
+            beforeEach(function() {
+              this.sameStatePages = this.dataset.state.pages.slice(1,3);
+            });
+
+            it("are resolved pages", function () {
+              this.sameStatePages.forEach(function (page) {
+                expect(page.isResolved).to.be.true;
+              });
+            });
+          });
+
+
+        });
+
       });
     });
 
