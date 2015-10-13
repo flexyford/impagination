@@ -117,17 +117,32 @@ export default class Dataset {
     return page;
   }
 
-  _fetchPage(page, offset) {
-    let stats = {
+  _getStateStats() {
+    return {
       totalPages: this.state.pages.length
     };
-    // let pageSize = this._pageSize;
+  }
 
-    return this._fetch.call(this, offset, stats).then((records) => {
-      // Ensure page has not changed state since fetch request was made
-      if(page === this.state.pages[offset]) {
-        this.state.pages[offset] = page.resolve(records);
+  _fetchPage(page, offset) {
+    var stats = this._getStateStats();
+
+    return this._fetch.call(this, offset, stats).then((data) => {
+      var records = data.records || [];
+      stats = data.stats || this._getStateStats();
+
+      // Return if page has changed state since fetch request
+      if(page !== this.state.pages[offset]) { return; }
+
+      if(stats.totalPages > this.state.pages.length) {
+        // touch pages
+        for (let i = this.state.pages.length; i < stats.totalPages; i += 1) {
+          this._touchPage(this.state.pages, i);
+        }
+      } else if(stats.totalPages < this.state.pages.length) {
+        // remove pages
+        this.state.pages.splice(stats.totalPages, this.state.pages.length);
       }
+      this.state.pages[offset] = page.resolve(records);
     });
   }
 }

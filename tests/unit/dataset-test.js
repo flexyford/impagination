@@ -58,11 +58,13 @@ describe("Dataset", function() {
     describe("default constructor values", function() {
       beforeEach(function() {
         this.dataset = new Dataset({
-          pageSize: 1,
-          fetch: function(pageOffset, pageSize){
+          pageSize: 10,
+          fetch: function(pageOffset){
+            var data = {
+              records: new Array(10).fill(pageOffset + 1)
+            };
             return new Ember.RSVP.Promise((resolve) => {
-              var records = new Array(pageSize).fill(pageOffset + 1);
-              resolve(records, pageOffset);
+              resolve(data);
             });
           }
         });
@@ -96,9 +98,11 @@ describe("Dataset", function() {
       this.options = {
         pageSize: this.recordsPerPage,
         fetch: (pageOffset) => {
-          var records = this.pages[pageOffset].records;
+          var data = {
+            records: this.pages[pageOffset].records
+          };
           return new Ember.RSVP.Promise((resolve) => {
-            resolve(records);
+            resolve(data);
           });
         }
       };
@@ -132,7 +136,6 @@ describe("Dataset", function() {
         });
 
         it('loads a single page', function () {
-          expect(this.dataset.state.pages).to.be.instanceOf(Array);
           expect(this.dataset.state.pages.length).to.equal(1);
         });
 
@@ -303,7 +306,7 @@ describe("Dataset", function() {
         this.dataset = new Dataset(this.options);
       });
 
-      it("captures the resolve", function() {
+      xit("captures the resolve", function() {
         var resolve = this.resolvers[0];
         expect(resolve.name).to.equal('resolvePromise');
       });
@@ -326,9 +329,11 @@ describe("Dataset", function() {
 
         describe("resolving all pages", function() {
           beforeEach(function() {
-            var records = this.server.createList('record', this.recordsPerPage);
+            var data = {
+              records: this.server.createList('record', this.recordsPerPage)
+            };
             this.resolvers.forEach(function(resolve) {
-              resolve(records);
+              resolve(data);
             });
           });
 
@@ -337,12 +342,12 @@ describe("Dataset", function() {
               this.changedStatePage = this.dataset.state.pages.slice(0,1);
             });
 
-            it("is not resolved", function () {
+            it("are not resolved", function () {
               this.changedStatePage.forEach(function (page) {
                 expect(page.isResolved).to.be.false;
               });
             });
-            it("remains unrequested", function () {
+            it("remain unrequested", function () {
               this.changedStatePage.forEach(function (page) {
                 expect(page.isRequested).to.be.false;
               });
@@ -360,13 +365,86 @@ describe("Dataset", function() {
               });
             });
           });
-
-
         });
-
       });
     });
 
+    describe("setting totalPages in statistics", function() {
+      beforeEach(function() {
+        this.totalPages = 5;
+        this.recordsPerPage = 10;
+        this.pages = [];
+        this.resolvers = [];
+
+        for(var i = 0; i < this.totalPages; i+=1){
+          var records = this.server.createList('record', this.recordsPerPage);
+          this.pages.push( this.server.create('page', {records: records}) );
+        }
+
+        this.options = {
+          pageSize: this.recordsPerPage,
+          initialReadOffset: 1,
+          loadHorizon: 2,
+          fetch: () => {
+            return new Ember.RSVP.Promise((resolve) => {
+              this.resolvers.push(resolve);
+            });
+          }
+        };
+        this.dataset = new Dataset(this.options);
+      });
+
+      describe("resolving the first page", function() {
+        beforeEach(function() {
+          var data = {
+            records: this.server.createList('record', this.recordsPerPage),
+            stats: {
+              totalPages: 10
+            }
+          };
+          var resolve = this.resolvers.shift();
+          resolve(data);
+        });
+
+        it("initializes the dataset to the specified number of pages", function() {
+          expect(this.dataset.state.pages.length).to.equal(10);
+        });
+
+        describe("increasing the totalPages", function() {
+          beforeEach(function() {
+            var data = {
+              records: this.server.createList('record', this.recordsPerPage),
+              stats: {
+                totalPages: 15
+              }
+            };
+            var resolve = this.resolvers.shift();
+            resolve(data);
+          });
+
+          it("increases the dataset to the specified number of pages", function() {
+            expect(this.dataset.state.pages.length).to.equal(15);
+          });
+
+          describe("decreasing the totalPages", function() {
+            beforeEach(function() {
+              var data = {
+                records: this.server.createList('record', this.recordsPerPage),
+                stats: {
+                  totalPages: 5
+                }
+              };
+              var resolve = this.resolvers.shift();
+              resolve(data);
+            });
+
+            it("decreases the dataset to the specified number of pages", function() {
+              expect(this.dataset.state.pages.length).to.equal(5);
+            });
+          });
+        });
+      });
+    });
 
     xdescribe("with no fetch function", function() {
       it("emits an observation of the state");
