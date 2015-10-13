@@ -18,6 +18,10 @@ class UnrequestedPage {
   request() {
     return new PendingPage(this);
   }
+
+  unload() {
+    return new UnrequestedPage(this.offset, this.size);
+  }
 }
 
 class PendingPage extends UnrequestedPage {

@@ -53,18 +53,38 @@ export default class Dataset {
     if (this._currentReadOffset === offset) { return; }
     this._currentReadOffset = offset;
 
-    this.state.update((next)=> {
+    this.state = this.state.update((next)=> {
       var pages = next.pages;
 
-      var maxHorizon = Math.min(offset + this._loadHorizon, this._pageSize);
-      var minHorizon = Math.max(offset - this._loadHorizon, 0);
-      var loadHorizonRange = maxHorizon - minHorizon;
-      for (var i = 0; i < loadHorizonRange; i += 1) {
-        pages.length = Math.max(pages.length, i + 1);
-        var page = pages[i];
-        if (!page || !page.isRequested) {
-          pages.splice(i, 1, new Page());
-          page = pages[i].request();
+      var minLoadHorizon = Math.max(offset - this._loadHorizon, 0);
+      var maxLoadHorizon = offset + this._loadHorizon;
+
+      var minUnloadHorizon = Math.max(offset - this._unloadHorizon, 0);
+      var maxUnloadHorizon = Math.min(offset + this._unloadHorizon, pages.length);
+
+      // Initialize Empty Pages
+      for (var i = minUnloadHorizon; i < maxLoadHorizon; i += 1) {
+        let page = pages[i];
+        if(!page) {
+          pages.splice(i, 1, new Page(i, this._pageSize));
+        }
+      }
+
+      // Unload Pages
+      for (i = 0; i < minUnloadHorizon; i += 1) {
+        this._unloadPage(pages, i);
+      }
+      for (i = maxUnloadHorizon; i < pages.length; i += 1) {
+        this._unloadPage(pages, i);
+      }
+
+      // Request and Fetch Records
+      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
+        let page = pages[i];
+        if (!page.isRequested) {
+          page = page.request();
+        }
+        if (page.isPending) {
           this._fetchPage(page, i);
         }
       }
@@ -73,10 +93,20 @@ export default class Dataset {
     this._observe(this.state);
   }
 
-  _fetchPage(page, idx) {
-    // let stats = {
-    //   totalPages: this.state.pages.length
-    // };
+  _unloadPage(pages, i) {
+    let page = pages[i];
+    if(!page) {
+      page = new Page(i, this._pageSize);
+    } else {
+      page = page.unload();
+    }
+    pages.splice(i, 1, page);
+  }
+
+  _fetchPage(page, offset) {
+    let stats = {
+      totalPages: this.state.pages.length
+    };
     // let pageSize = this._pageSize;
 
     return this._fetch.call(this, idx + this._currentReadOffset).then((records) => {
