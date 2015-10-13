@@ -42,6 +42,10 @@ class PendingPage extends UnrequestedPage {
   request() {
     return this;
   }
+
+  unload() {
+    return new UnrequestedPage(this.offset, this.size);
+  }
 }
 
 class ResolvedPage extends PendingPage {
