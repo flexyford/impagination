@@ -5,7 +5,7 @@ class UnrequestedPage {
   }
 
 
-  get isRequested() { return !(this.isSettled || this.isPending); }
+  get isRequested() { return (this.isSettled || this.isPending); }
   get isPending() { return false; }
   get isResolved() { return false; }
   get isRejected() { return false; }
@@ -33,6 +33,10 @@ class PendingPage extends UnrequestedPage {
 
   reject(error) {
     return new RejectedPage(this, error);
+  }
+
+  request() {
+    return this;
   }
 }
 
