@@ -62,15 +62,7 @@ export default class Dataset {
       var minUnloadHorizon = Math.max(offset - this._unloadHorizon, 0);
       var maxUnloadHorizon = Math.min(offset + this._unloadHorizon, pages.length);
 
-      // Initialize Empty Pages
-      for (var i = minUnloadHorizon; i < maxLoadHorizon; i += 1) {
-        let page = pages[i];
-        if(!page) {
-          pages.splice(i, 1, new Page(i, this._pageSize));
-        }
-      }
-
-      // Unload Pages
+      // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
         this._unloadPage(pages, i);
       }
@@ -78,29 +70,51 @@ export default class Dataset {
         this._unloadPage(pages, i);
       }
 
-      // Request and Fetch Records
+      // Initialize Unfetched Pages between current Horizons
+      let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
+      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
+      for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
+        this._touchPage(pages, i);
+      }
+
+      // Request and Fetch Records within the `loadHorizons`
       for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-        let page = pages[i];
+        let page = this._touchPage(pages, i);
+
         if (!page.isRequested) {
           page = page.request();
+          pages.splice(i, 1, page);
         }
+
         if (page.isPending) {
           this._fetchPage(page, i);
         }
       }
+      next.pages = pages;
       return next;
     });
     this._observe(this.state);
   }
 
+  /* Unloads a page at the given index and returns the unloaded page */
   _unloadPage(pages, i) {
-    let page = pages[i];
+    let page = this._touchPage(pages, i);
+    if (page.isRequested) {
+      page = page.unload();
+      pages.splice(i, 1, page);
+    }
+    return page;
+  }
+
+  /* Returns the page at the given index
+   * If no page exists it generates and returns a new Page instance */
+  _touchPage(pages, i) {
+    var page = pages[i];
     if(!page) {
       page = new Page(i, this._pageSize);
-    } else {
-      page = page.unload();
+      pages.splice(i, 1, page);
     }
-    pages.splice(i, 1, page);
+    return page;
   }
 
   _fetchPage(page, offset) {

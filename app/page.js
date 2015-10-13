@@ -20,7 +20,7 @@ class UnrequestedPage {
   }
 
   unload() {
-    return new UnrequestedPage(this.offset, this.size);
+    return this;
   }
 }
 
