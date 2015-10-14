@@ -84,6 +84,65 @@ describe("Dataset", function() {
     });
   });
 
+  describe("thenables", function () {
+    beforeEach(function() {
+      this.recordsPerPage = 10;
+      this.resolvers = [];
+      this.rejecters = [];
+
+      this.options = {
+        pageSize: this.recordsPerPage,
+        fetch: () => {
+          return new Ember.RSVP.Promise((resolve, reject) => {
+            this.resolvers.push(resolve);
+            this.rejecters.push(reject);
+          });
+        }
+      };
+      this.dataset = new Dataset(this.options);
+    });
+
+    it("captures the resolve", function() {
+      var resolve = this.resolvers[0];
+      expect(resolve.name).to.equal('resolvePromise');
+    });
+
+    it("captures the reject", function() {
+      var resolve = this.rejecters[0];
+      expect(resolve.name).to.equal('rejectPromise');
+    });
+
+    describe("resolving a fetched page", function() {
+      beforeEach(function() {
+        var data = {
+          records: this.server.createList('record', this.recordsPerPage)
+        };
+        this.resolvers.forEach(function(resolve) {
+          resolve(data);
+        });
+      });
+      it('loads a single page', function () {
+        expect(this.dataset.state.pages.length).to.equal(1);
+      });
+      it('loads a single page of records', function () {
+        var page = this.dataset.state.pages[0];
+        expect(page.records.length).to.equal(this.recordsPerPage);
+        expect(page.records[0].name).to.equal('Record 0');
+      });
+    });
+
+    describe("rejecting a fetched page", function() {
+      beforeEach(function() {
+        this.rejecters.forEach(function(reject) {
+          reject();
+        });
+      });
+      it("does not load a single page", function() {
+        expect(this.dataset.state.pages.length).to.equal(0);
+      });
+    });
+  });
+
   describe("loading pages", function() {
     beforeEach(function() {
       this.totalPages = 5;

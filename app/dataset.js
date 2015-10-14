@@ -127,11 +127,11 @@ export default class Dataset {
     var stats = this._getStateStats();
 
     return this._fetch.call(this, offset, stats).then((data) => {
-      var records = data.records || [];
-      stats = data.stats || this._getStateStats();
-
       // Return if page has changed state since fetch request
       if(page !== this.state.pages[offset]) { return; }
+
+      var records = data.records || [];
+      stats = data.stats || this._getStateStats();
 
       if(stats.totalPages > this.state.pages.length) {
         // touch pages
@@ -143,6 +143,10 @@ export default class Dataset {
         this.state.pages.splice(stats.totalPages, this.state.pages.length);
       }
       this.state.pages[offset] = page.resolve(records);
+    }).catch((data = {}) => {
+      stats = data.stats || this._getStateStats();
+      let updatedOffset = stats.totalPages - 1 || offset;
+      this.state.pages.splice(updatedOffset, this.state.pages.length);
     });
   }
 }
