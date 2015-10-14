@@ -123,30 +123,34 @@ export default class Dataset {
     };
   }
 
+  _adjustTotalPages(stats) {
+    stats = stats || this._getStateStats();
+    if(stats.totalPages > this.state.pages.length) {
+      // touch pages
+      for (let i = this.state.pages.length; i < stats.totalPages; i += 1) {
+        this._touchPage(this.state.pages, i);
+      }
+    } else if(stats.totalPages < this.state.pages.length) {
+      // remove pages
+      this.state.pages.splice(stats.totalPages, this.state.pages.length);
+    }
+  }
+
   _fetchPage(page, offset) {
     var stats = this._getStateStats();
 
     return this._fetch.call(this, offset, stats).then((data) => {
-      // Return if page has changed state since fetch request
       if(page !== this.state.pages[offset]) { return; }
+      this._adjustTotalPages(data.stats);
 
+      // TODO: See if we can move this up a couple a lines
       var records = data.records || [];
-      stats = data.stats || this._getStateStats();
-
-      if(stats.totalPages > this.state.pages.length) {
-        // touch pages
-        for (let i = this.state.pages.length; i < stats.totalPages; i += 1) {
-          this._touchPage(this.state.pages, i);
-        }
-      } else if(stats.totalPages < this.state.pages.length) {
-        // remove pages
-        this.state.pages.splice(stats.totalPages, this.state.pages.length);
-      }
       this.state.pages[offset] = page.resolve(records);
     }).catch((data = {}) => {
-      stats = data.stats || this._getStateStats();
-      let updatedOffset = stats.totalPages - 1 || offset;
-      this.state.pages.splice(updatedOffset, this.state.pages.length);
+      if(page !== this.state.pages[offset]) { return; }
+      let error = data.error || {};
+      this.state.pages[offset] = page.reject(error);
+      this._adjustTotalPages(data.stats);
     });
   }
 }
