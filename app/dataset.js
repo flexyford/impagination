@@ -119,12 +119,11 @@ export default class Dataset {
 
   _getStateStats() {
     return {
-      totalPages: this.state.pages.length
+      totalPages: Math.max(this.state.pages.length, this._currentReadOffset + this._loadHorizon)
     };
   }
 
   _adjustTotalPages(stats) {
-    stats = stats || this._getStateStats();
     if(stats.totalPages > this.state.pages.length) {
       // touch pages
       for (let i = this.state.pages.length; i < stats.totalPages; i += 1) {
@@ -138,19 +137,14 @@ export default class Dataset {
 
   _fetchPage(page, offset) {
     var stats = this._getStateStats();
-
-    return this._fetch.call(this, offset, stats).then((data) => {
+    return this._fetch.call(this, offset, stats).then((records = []) => {
       if(page !== this.state.pages[offset]) { return; }
-      this._adjustTotalPages(data.stats);
-
-      // TODO: See if we can move this up a couple a lines
-      var records = data.records || [];
       this.state.pages[offset] = page.resolve(records);
-    }).catch((data = {}) => {
+      this._adjustTotalPages(stats);
+    }).catch((error = {}) => {
       if(page !== this.state.pages[offset]) { return; }
-      let error = data.error || {};
       this.state.pages[offset] = page.reject(error);
-      this._adjustTotalPages(data.stats);
+      this._adjustTotalPages(stats);
     });
   }
 }

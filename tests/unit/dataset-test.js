@@ -92,33 +92,39 @@ describe("Dataset", function() {
 
       this.options = {
         pageSize: this.recordsPerPage,
-        fetch: () => {
+        fetch: (pageOffset, stats) => {
           return new Ember.RSVP.Promise((resolve, reject) => {
-            this.resolvers.push(resolve);
-            this.rejecters.push(reject);
+            this.resolvers.push({
+              resolve: resolve,
+              pageOffset: pageOffset,
+              stats: stats
+            });
+            this.rejecters.push({
+              reject: reject,
+              pageOffset: pageOffset,
+              stats: stats
+            });
           });
         }
       };
       this.dataset = new Dataset(this.options);
     });
 
-    xit("captures the resolve", function() {
-      var resolve = this.resolvers[0];
+    it("captures the resolve", function() {
+      var resolve = this.resolvers[0].resolve;
       expect(resolve.name).to.equal('resolvePromise');
     });
 
-    xit("captures the reject", function() {
-      var resolve = this.rejecters[0];
+    it("captures the reject", function() {
+      var resolve = this.rejecters[0].reject;
       expect(resolve.name).to.equal('rejectPromise');
     });
 
     describe("resolving a fetched page", function() {
       beforeEach(function() {
-        var data = {
-          records: this.server.createList('record', this.recordsPerPage)
-        };
-        this.resolvers.forEach(function(resolve) {
-          resolve(data);
+        var records = this.server.createList('record', this.recordsPerPage);
+        this.resolvers.forEach(function(obj) {
+          obj.resolve(records);
         });
       });
       it('loads a single page', function () {
@@ -135,12 +141,9 @@ describe("Dataset", function() {
 
       describe("with totalPages stats", function() {
         beforeEach(function() {
-          this.rejecters.forEach(function(reject) {
-            reject({
-              stats: {
-                totalPages: 5
-              }
-            });
+          this.rejecters.forEach(function(obj) {
+            obj.stats.totalPages = 5;
+            obj.reject();
           });
         });
         it("loads the totalPages", function() {
@@ -154,8 +157,8 @@ describe("Dataset", function() {
 
       describe("without totalPages stats", function() {
         beforeEach(function() {
-          this.rejecters.forEach(function(reject) {
-            reject();
+          this.rejecters.forEach(function(obj) {
+            obj.reject();
           });
         });
         it('loads a single page', function () {
@@ -169,8 +172,8 @@ describe("Dataset", function() {
 
       describe("with an error", function() {
         beforeEach(function() {
-          this.rejecters.forEach(function(reject) {
-            reject({error: "404"});
+          this.rejecters.forEach(function(obj) {
+            obj.reject("404");
           });
         });
         it("has an error message on the page", function() {
@@ -197,11 +200,9 @@ describe("Dataset", function() {
       this.options = {
         pageSize: this.recordsPerPage,
         fetch: (pageOffset) => {
-          var data = {
-            records: this.pages[pageOffset].records
-          };
+          var records = this.pages[pageOffset].records;
           return new Ember.RSVP.Promise((resolve) => {
-            resolve(data);
+            resolve(records);
           });
         }
       };
@@ -306,6 +307,10 @@ describe("Dataset", function() {
           this.dataset = new Dataset(this.options);
         });
 
+        it('initializes all pages up to the loadHorizon', function () {
+          expect(this.dataset.state.pages.length).to.equal(3);
+        });
+
         it("does not have data defined on the first page", function() {
           var unrequestedPage = this.dataset.state.pages[0];
           expect(unrequestedPage.records.length).to.equal(10);
@@ -327,6 +332,10 @@ describe("Dataset", function() {
         describe("incrementing the readOffset", function() {
           beforeEach(function() {
             this.dataset.setReadOffset(4);
+          });
+
+          it('initializes all pages up to the loadHorizon', function () {
+            expect(this.dataset.state.pages.length).to.equal(5);
           });
 
           it("unloads the page before the previous offset", function() {
@@ -381,25 +390,19 @@ describe("Dataset", function() {
 
       describe("the end of total pages", function() {
         beforeEach(function() {
-          this.options.fetch = (pageOffset) => {
-            var data,
+          this.options.fetch = (pageOffset, stats) => {
+            var records,
                 _this = this;
             if(pageOffset < _this.totalPages){
-              data = {
-                records: this.pages[pageOffset].records
-              };
+              records = this.pages[pageOffset].records;
             } else {
-              data = {
-                stats: {
-                  totalPages: _this.totalPages
-                }
-              };
+              stats.totalPages = _this.totalPages;
             }
             return new Ember.RSVP.Promise((resolve, reject) => {
               if(pageOffset < _this.totalPages){
-                resolve(data);
+                resolve(records);
               } else {
-                reject(data);
+                reject();
               }
             });
           };
@@ -443,25 +446,19 @@ describe("Dataset", function() {
 
           describe("when reject() returns the total number of pages", function() {
             beforeEach(function() {
-              this.options.fetch = (pageOffset) => {
-                var data,
+              this.options.fetch = (pageOffset, stats) => {
+                var records,
                     _this = this;
                 if(pageOffset < _this.totalPages){
-                  data = {
-                    records: this.pages[pageOffset].records
-                  };
+                  records = this.pages[pageOffset].records;
                 } else {
-                  data = {
-                    stats: {
-                      totalPages: _this.totalPages
-                    }
-                  };
+                  stats.totalPages = _this.totalPages;
                 }
                 return new Ember.RSVP.Promise((resolve, reject) => {
                   if(pageOffset < _this.totalPages){
-                    resolve(data);
+                    resolve(records);
                   } else {
-                    reject(data);
+                    reject();
                   }
                 });
               };
@@ -490,16 +487,14 @@ describe("Dataset", function() {
           describe("when reject() does not return the total number of pages", function() {
             beforeEach(function() {
               this.options.fetch = (pageOffset) => {
-                var data,
+                var records,
                     _this = this;
                 if(pageOffset < _this.totalPages){
-                  data = {
-                    records: this.pages[pageOffset].records
-                  };
+                  records = this.pages[pageOffset].records;
                 }
                 return new Ember.RSVP.Promise((resolve, reject) => {
                   if(pageOffset < _this.totalPages){
-                    resolve(data);
+                    resolve(records);
                   } else {
                     reject();
                   }
@@ -630,6 +625,7 @@ describe("Dataset", function() {
         this.recordsPerPage = 10;
         this.pages = [];
         this.resolvers = [];
+        this.rejecters = [];
 
         for(var i = 0; i < this.totalPages; i+=1){
           var records = this.server.createList('record', this.recordsPerPage);
@@ -640,41 +636,42 @@ describe("Dataset", function() {
           pageSize: this.recordsPerPage,
           initialReadOffset: 1,
           loadHorizon: 2,
-          fetch: () => {
-            return new Ember.RSVP.Promise((resolve) => {
-              this.resolvers.push(resolve);
+          fetch: (pageOffset, stats) => {
+            return new Ember.RSVP.Promise((resolve, reject) => {
+              this.resolvers.push({
+                resolve: resolve,
+                pageOffset: pageOffset,
+                stats: stats
+              });
+              this.rejecters.push({
+                reject: reject,
+                pageOffset: pageOffset,
+                stats: stats
+              });
             });
           }
         };
         this.dataset = new Dataset(this.options);
       });
 
-      describe("resolving the first page", function() {
+      describe("resolving the first page with 10 pages", function() {
         beforeEach(function() {
-          var data = {
-            records: this.server.createList('record', this.recordsPerPage),
-            stats: {
-              totalPages: 10
-            }
-          };
-          var resolve = this.resolvers.shift();
-          resolve(data);
+          var records = this.server.createList('record', this.recordsPerPage);
+          var obj = this.resolvers.shift();
+          obj.stats.totalPages = 10;
+          obj.resolve(records);
         });
 
         it("initializes the dataset to the specified number of pages", function() {
           expect(this.dataset.state.pages.length).to.equal(10);
         });
 
-        describe("increasing the totalPages", function() {
+        describe("increasing the totalPages to 15", function() {
           beforeEach(function() {
-            var data = {
-              records: this.server.createList('record', this.recordsPerPage),
-              stats: {
-                totalPages: 15
-              }
-            };
-            var resolve = this.resolvers.shift();
-            resolve(data);
+            var records = this.server.createList('record', this.recordsPerPage);
+            var obj = this.resolvers.shift();
+            obj.stats.totalPages = 15;
+            obj.resolve(records);
           });
 
           it("increases the dataset to the specified number of pages", function() {
@@ -683,14 +680,10 @@ describe("Dataset", function() {
 
           describe("decreasing the totalPages", function() {
             beforeEach(function() {
-              var data = {
-                records: this.server.createList('record', this.recordsPerPage),
-                stats: {
-                  totalPages: 5
-                }
-              };
-              var resolve = this.resolvers.shift();
-              resolve(data);
+              var records = this.server.createList('record', this.recordsPerPage);
+              var obj = this.resolvers.shift();
+              obj.stats.totalPages = 5;
+              obj.resolve(records);
             });
 
             it("decreases the dataset to the specified number of pages", function() {
