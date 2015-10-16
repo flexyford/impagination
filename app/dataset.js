@@ -45,7 +45,6 @@ export default class Dataset {
     this._unloadHorizon = options.unloadHorizon || Infinity;
     this._initialReadOffset = options.initialReadOffset || 0;
     this.state = new State();
-    this._observe = options.observe;
     this.setReadOffset(this._initialReadOffset); // Initial Page Fetch
   }
 

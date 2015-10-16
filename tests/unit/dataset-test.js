@@ -1,7 +1,8 @@
 /*global it, xit, describe, beforeEach, afterEach, xdescribe */
 /*jshint -W030 */ // Expected an assignment or function call and instead saw an expression
 
-import Dataset from 'dataset/dataset';
+import Dataset from 'impagination/dataset';
+import '../test-helper';
 
 import Ember from 'ember';
 import { it } from 'ember-mocha';

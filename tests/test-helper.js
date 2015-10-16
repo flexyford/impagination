@@ -1,6 +1,3 @@
-import resolver from './helpers/resolver';
-import { setResolver } from 'ember-mocha';
-
 if ( ![].fill)  {
   Array.prototype.fill = function( value ) {
 
@@ -18,5 +15,3 @@ if ( ![].fill)  {
     return O;
   };
 }
-
-setResolver(resolver);
