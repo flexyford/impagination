@@ -17,8 +17,11 @@ class State {
     next.isRejected = this.isRejected;
     next.isSettled = this.isSettled;
     next.totalSize = this.totalSize;
+    next.pageSize = this.pageSize;
     next.pages = this.pages.slice();
-    return change.call(this, next);
+    change.call(this, next);
+    next.pages = Object.freeze(next.pages);
+    return next;
   }
 
   get records() {
@@ -45,6 +48,7 @@ export default class Dataset {
     this._unloadHorizon = options.unloadHorizon || Infinity;
     this._initialReadOffset = options.initialReadOffset || 0;
     this.state = new State();
+    this.state.pageSize = this._pageSize;
     this.setReadOffset(this._initialReadOffset); // Initial Page Fetch
   }
 
@@ -89,8 +93,6 @@ export default class Dataset {
           this._fetchPage(page, i);
         }
       }
-      next.pages = pages;
-      return next;
     });
     this._observe(this.state);
   }
@@ -116,34 +118,40 @@ export default class Dataset {
     return page;
   }
 
-  _getStateStats() {
+  _getStateStats(pages) {
     return {
-      totalPages: Math.max(this.state.pages.length, this._currentReadOffset + this._loadHorizon)
+      totalPages: Math.max(pages.length, this._currentReadOffset + this._loadHorizon)
     };
   }
 
-  _adjustTotalPages(stats) {
-    if(stats.totalPages > this.state.pages.length) {
+  _adjustTotalPages(pages, stats) {
+    if(stats.totalPages > pages.length) {
       // touch pages
-      for (let i = this.state.pages.length; i < stats.totalPages; i += 1) {
-        this._touchPage(this.state.pages, i);
+      for (let i = pages.length; i < stats.totalPages; i += 1) {
+        this._touchPage(pages, i);
       }
-    } else if(stats.totalPages < this.state.pages.length) {
+    } else if(stats.totalPages < pages.length) {
       // remove pages
-      this.state.pages.splice(stats.totalPages, this.state.pages.length);
+      pages.splice(stats.totalPages, pages.length);
     }
   }
 
   _fetchPage(page, offset) {
-    var stats = this._getStateStats();
+    var stats = this._getStateStats(this.state.pages);
     return this._fetch.call(this, offset, stats).then((records = []) => {
-      if(page !== this.state.pages[offset]) { return; }
-      this.state.pages[offset] = page.resolve(records);
-      this._adjustTotalPages(stats);
+      let state = this.state.update((next)=> {
+        if(page !== next.pages[offset]) { return; }
+        next.pages[offset] = page.resolve(records);
+        this._adjustTotalPages(next.pages, stats);
+      });
+      this._observe(this.state = state);
     }).catch((error = {}) => {
-      if(page !== this.state.pages[offset]) { return; }
-      this.state.pages[offset] = page.reject(error);
-      this._adjustTotalPages(stats);
+      let state = this.state.update((next)=> {
+        if(page !== next.pages[offset]) { return; }
+        next.pages[offset] = page.reject(error);
+        this._adjustTotalPages(next.pages, stats);
+      });
+      this._observe(this.state = state);
     });
   }
 }
