@@ -7,6 +7,9 @@ class State {
     this.isRejected = false;
     this.isSettled = true;
     this.pages = [];
+    this.stats = {
+      totalPages: undefined
+    };
     this.totalSize = 0;
   }
 
@@ -19,6 +22,7 @@ class State {
     next.totalSize = this.totalSize;
     next.pageSize = this.pageSize;
     next.pages = this.pages.slice();
+    next.stats.totalPages = this.stats.totalPages;
     change.call(this, next);
     next.pages = Object.freeze(next.pages);
     return next;
@@ -60,10 +64,10 @@ export default class Dataset {
       var pages = next.pages;
 
       var minLoadHorizon = Math.max(offset - this._loadHorizon, 0);
-      var maxLoadHorizon = offset + this._loadHorizon;
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, offset + this._loadHorizon);
 
       var minUnloadHorizon = Math.max(offset - this._unloadHorizon, 0);
-      var maxUnloadHorizon = Math.min(offset + this._unloadHorizon, pages.length);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, offset + this._unloadHorizon, pages.length);
 
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
@@ -133,9 +137,10 @@ export default class Dataset {
   }
 
   _fetchPage(page, offset) {
-    var stats = this._getStateStats(this.state.pages);
+    let stats = {totalPages: this.state.totalPages };
     return this._fetch.call(this, offset, stats).then((records = []) => {
       let state = this.state.update((next)=> {
+        next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.resolve(records);
         this._adjustTotalPages(next.pages, stats);
@@ -143,6 +148,7 @@ export default class Dataset {
       this._observe(this.state = state);
     }).catch((error = {}) => {
       let state = this.state.update((next)=> {
+        next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.reject(error);
         this._adjustTotalPages(next.pages, stats);
