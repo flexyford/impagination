@@ -85,12 +85,8 @@ export default class Dataset {
         let page = this._touchPage(pages, i);
 
         if (!page.isRequested) {
-          page = page.request();
-          pages.splice(i, 1, page);
-        }
-
-        if (page.isPending) {
-          this._fetchPage(page, i);
+          pages[i] = page.request();
+          this._fetchPage(pages[i], i);
         }
       }
     });
