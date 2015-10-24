@@ -1,9 +1,11 @@
+import Record from './record';
+
 class UnrequestedPage {
   constructor(offset, size) {
     this.offset = offset;
     this.size = size || 0;
+    this.data = new Array(size).fill({});
   }
-
 
   get isRequested() { return (this.isSettled || this.isPending); }
   get isPending() { return false; }
@@ -12,7 +14,10 @@ class UnrequestedPage {
   get isSettled() { return false; }
 
   get records() {
-    return new Array(this.size).fill({});
+    var records = this.data.map(function (content, index) {
+      return new Record(this, content, index);
+    }, this);
+    return records;
   }
 
   request() {
@@ -56,9 +61,6 @@ class ResolvedPage extends PendingPage {
   get isPending() { return false; }
   get isResolved() { return true; }
   get isSettled() { return true; }
-  get records() {
-    return this.data;
-  }
 }
 
 class RejectedPage extends PendingPage {

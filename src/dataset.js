@@ -21,6 +21,10 @@ class State {
     next.isSettled = this.isSettled;
     next.totalSize = this.totalSize;
     next.pageSize = this.pageSize;
+    next.loadHorizon = this.loadHorizon;
+    next.unloadHorizon = this.unloadHorizon;
+    next.readOffset = this.readOffset;
+    next.pageOffset = this.pageOffset;
     next.pages = this.pages.slice();
     next.stats.totalPages = this.stats.totalPages;
     change.call(this, next);
@@ -44,30 +48,33 @@ export default class Dataset {
     if (!options.fetch) {
       throw new Error('created Dataset without fetch()');
     }
+    var initialReadOffset = options.initialReadOffset || 0;
 
     this._pageSize = options.pageSize;
     this._fetch = options.fetch;
     this._observe = options.observe || function() {};
-    this._loadHorizon = options.loadHorizon || 1;
-    this._unloadHorizon = options.unloadHorizon || Infinity;
-    this._initialReadOffset = options.initialReadOffset || 0;
+    // this._loadHorizon = options.loadHorizon || 1;
+    // this._unloadHorizon = options.unloadHorizon || Infinity;
     this.state = new State();
     this.state.pageSize = this._pageSize;
-    this.setReadOffset(this._initialReadOffset); // Initial Page Fetch
+    this.state.loadHorizon = options.loadHorizon || 1;
+    this.state.unloadHorizon = options.unloadHorizon || Infinity;
+    this.setReadOffset(initialReadOffset); // Initial Page Fetch
   }
 
-  setReadOffset(offset) {
-    if (this._currentReadOffset === offset) { return; }
-    this._currentReadOffset = offset;
-
-    this.state = this.state.update((next)=> {
+  setReadOffset(readOffset) {
+    var pageOffset = Math.floor(readOffset / this.state.pageSize);
+    if (this.state.readOffset === readOffset) { return; }
+    let state = this.state.update((next)=> {
+      next.readOffset = readOffset;
+      next.pageOffset = pageOffset;
       var pages = next.pages;
 
-      var minLoadHorizon = Math.max(offset - this._loadHorizon, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, offset + this._loadHorizon);
+      var minLoadHorizon = Math.max(pageOffset - next.loadHorizon, 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, pageOffset + next.loadHorizon);
 
-      var minUnloadHorizon = Math.max(offset - this._unloadHorizon, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, offset + this._unloadHorizon, pages.length);
+      var minUnloadHorizon = Math.max(pageOffset - next.unloadHorizon, 0);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, pageOffset + next.unloadHorizon, pages.length);
 
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
@@ -90,11 +97,12 @@ export default class Dataset {
 
         if (!page.isRequested) {
           pages[i] = page.request();
-          this._fetchPage(pages[i], i);
+          next.isPending = true;
+          this._fetchPage(pages[i]);
         }
       }
     });
-    this._observe(this.state);
+    this._observe(this.state = state);
   }
 
   /* Unloads a page at the given index and returns the unloaded page */
@@ -118,12 +126,6 @@ export default class Dataset {
     return page;
   }
 
-  _getStateStats(pages) {
-    return {
-      totalPages: Math.max(pages.length, this._currentReadOffset + this._loadHorizon)
-    };
-  }
-
   _adjustTotalPages(pages, stats) {
     if(stats.totalPages > pages.length) {
       // touch pages
@@ -136,10 +138,13 @@ export default class Dataset {
     }
   }
 
-  _fetchPage(page, offset) {
+  _fetchPage(page) {
+    let offset = page.offset;
+    let pageSize = this.state.pageSize;
     let stats = {totalPages: this.state.totalPages };
-    return this._fetch.call(this, offset, stats).then((records = []) => {
+    return this._fetch.call(this, offset, pageSize, stats).then((records = []) => {
       let state = this.state.update((next)=> {
+        next.isPending = false;
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.resolve(records);
@@ -148,6 +153,7 @@ export default class Dataset {
       this._observe(this.state = state);
     }).catch((error = {}) => {
       let state = this.state.update((next)=> {
+        next.isPending = false;
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.reject(error);
