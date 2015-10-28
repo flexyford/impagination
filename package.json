@@ -5,6 +5,7 @@
   "main": "./lib/index.js",
   "jsnext:main": "./src/dataset.js",
   "scripts": {
+    "prepublish": "babel --optional runtime src/ --out-dir lib/",
     "test": "mocha --reporter spec --full-trace test/index.js"
   },
   "repository": {
