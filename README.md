@@ -25,16 +25,17 @@ import { Dataset } from 'impagination';
 let state = null;
 
 let dataset = new Dataset({
-  // how many records should we "keep ahead" (default = pageSize)?
+  // how many records should we "keep ahead"? (default = pageSize)
   loadHorizon: 10,
   // fetch in pages of 5 (default 10)
   pageSize: 5,
-  // this fake fetch function returns a page of random numbers
+  // this fake fetch function returns a page where the "records" *are*
+  // the offsets
   fetch: function(pageOffset, pageSize, stats) {
     stats.totalPages = 5;
     return new Promise(function(resolve) {
-      resolve(return new Array(pageSize).fill(0).map(function()) {
-        return Math.random();
+      resolve(return new Array(pageSize).fill(0).map(function(zero, i)) {
+        return pageOffset * pageSize + i;
       });
     });
   },
@@ -55,10 +56,90 @@ state.get(0) //=> null;
 ```
 
 To tell where to start reading, you update the dataset's "read
-offset". This indicates where you're interested in accessing records:
+offset". It's the only "imperative" API that impagination exposes, and
+it indicates where you're interested in accessing records. Let's start
+at the beginning.
 
 ```javascript
 dataset.setReadOffset(0);
 ```
 
-Now, a new state will be emitted indicating
+Immediately, this will call fetch twice (for records 0-4, and 5-9),
+and emit a new state indicating that these records are in flight.
+
+```javascript
+state.length //=> 10
+let record = state.get(7)
+record.isPending //=> true
+record.isResolved //=> false
+record.content //=> null
+```
+
+### Load Horizon
+
+How did it know which records to fetch? The answer is in the
+`loadHorizon` parameter that we passed into the constructor. This
+tells the dataset, that it should keep all records within 10 of the
+current read offset loaded. That's why it fetched the first two
+pages. Now logicially, our dataset looks like this:
+
+> Note: `p` indicates that the record is pending.
+
+
+```
+           Read
+          Offset
+             ┃
+             ┃
+<──────────Load Horizon──────────>
+             ┃
+             ▼
+             ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+              p p p p p p p p p p
+             └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+```
+
+At some point, the request for the first page resolves. At that point,
+the dataset will emit a new state with the resolved records. That
+state will still contain the pending records as well as the freshly
+loaded.
+
+
+```javascript
+//get a record off the first page
+record = state.get(3);
+record.isResolved //=> true
+record.content //=> 3
+
+//get a record off the second page
+record = state.get(7)
+record.isPending //=> true
+```
+
+Another interesting thing that happened here is that the length of the
+dataset has also changed.
+
+```javascript
+state.length //=> 30
+```
+
+This has to do with the `stats` parameter that is passed into the
+fetch function. This value allows the fetch function to optionally
+specify the total extent of the dataset if that information is
+available. This can be useful when rendering native scrollbars or
+other UI elements that indicate the overall length of a list. If
+`stats` are never updated, then the dataset will just expand
+indefinitely. Now our dataset looks like this:
+
+```
+            Read
+           Offset
+              ┃
+              ┃
+<──────────Load Horizon──────────>
+              ┃
+              ▼
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+               0 1 2 3 4 p p p p p xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx│
+              └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+```
