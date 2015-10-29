@@ -1,53 +1,64 @@
-# Dataset
+# Impagination
 
-This README outlines the details of collaborating on this Ember application.
-A short introduction of this app could easily go here.
+Put the *fun* back in asynchronous, paged, datasets.
 
-## Prerequisites
+Whatever your use-case: infinite scrolling lists, a carousel browser,
+or even a classic page-by-page result list, Impagination frees you to
+focus on what you want to do with your data, not the micro-logistics
+of when to fetch it. All you provide Impagination is the logic to
+fetch a single page, plus how many pages you want it to pre-fetch
+ahead of you, and it will figure out the rest.
 
-You will need the following things properly installed on your computer.
+Impagination is built using an event-driven immutable style, so it is
+ideal for use with UI frameworks like Ember, Angular, or React. That
+said, it has zero dependencies apart from JavaScript, so it can be
+used from node as well.
 
-* [Git](http://git-scm.com/)
-* [Node.js](http://nodejs.org/) (with NPM)
-* [Bower](http://bower.io/)
-* [Ember CLI](http://www.ember-cli.com/)
-* [PhantomJS](http://phantomjs.org/)
+## Usage
 
-## Installation
+To get started, create a dataset. There are only two required parameters
+`fetch`, and `observe`:
 
-* `git clone <repository-url>` this repository
-* change into the new directory
-* `npm install`
-* `bower install`
+```javascript
+import { Dataset } from 'impagination';
 
-## Running / Development
+let state = null;
 
-* `ember server`
-* Visit your app at [http://localhost:4200](http://localhost:4200).
+let dataset = new Dataset({
+  // how many records should we "keep ahead" (default = pageSize)?
+  loadHorizon: 10,
+  // fetch in pages of 5 (default 10)
+  pageSize: 5,
+  // this fake fetch function returns a page of random numbers
+  fetch: function(pageOffset, pageSize, stats) {
+    stats.totalPages = 5;
+    return new Promise(function(resolve) {
+      resolve(return new Array(pageSize).fill(0).map(function()) {
+        return Math.random();
+      });
+    });
+  },
+  //this function is invoked whenever a new state is generated.
+  observe: function(nextState) {
+    state = nextState;
+  }
+});
+```
 
-### Code Generators
+This will emit a state immediately, however this state will not have
+anything in it, but That's because we haven't told the dataset where we
+want to start reading from.
 
-Make use of the many generators for code, try `ember help generate` for more details
+```javascript
+state.length //=> 0;
+state.get(0) //=> null;
+```
 
-### Running Tests
+To tell where to start reading, you update the dataset's "read
+offset". This indicates where you're interested in accessing records:
 
-* `ember test`
-* `ember test --server`
+```javascript
+dataset.setReadOffset(0);
+```
 
-### Building
-
-* `ember build` (development)
-* `ember build --environment production` (production)
-
-### Deploying
-
-Specify what it takes to deploy your app.
-
-## Further Reading / Useful Links
-
-* [ember.js](http://emberjs.com/)
-* [ember-cli](http://www.ember-cli.com/)
-* Development Browser Extensions
-  * [ember inspector for chrome](https://chrome.google.com/webstore/detail/ember-inspector/bmdblncegkenkacieihfhpjfppoconhi)
-  * [ember inspector for firefox](https://addons.mozilla.org/en-US/firefox/addon/ember-inspector/)
-
+Now, a new state will be emitted indicating
