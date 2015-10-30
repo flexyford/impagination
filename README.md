@@ -131,7 +131,9 @@ specify the total extent of the dataset if that information is
 available. This can be useful when rendering native scrollbars or
 other UI elements that indicate the overall length of a list. If
 `stats` are never updated, then the dataset will just expand
-indefinitely. Now our dataset looks like this:
+indefinitely. Now our state looks like this:
+
+> Note `x` indicates that the record is not yet requested
 
 ```
             Read
