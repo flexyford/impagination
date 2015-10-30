@@ -83,7 +83,7 @@ tells the dataset, that it should keep all records within 10 of the
 current read offset loaded. That's why it fetched the first two
 pages. Now logicially, our dataset looks like this:
 
-> Note: `p` indicates that the record is pending.
+> Note: `*` indicates that the record is pending.
 
 
 ```
@@ -95,8 +95,10 @@ pages. Now logicially, our dataset looks like this:
              ┃
              ▼
              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-              p p p p p p p p p p
-             └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+              * * * * * * * * * *
+             ◇ ─ ─ ─ ─ ◇─ ─ ─ ─  ┘
+             │         │
+             p0        p1
 ```
 
 At some point, the request for the first page resolves. At that point,
@@ -140,6 +142,78 @@ indefinitely. Now our dataset looks like this:
               ┃
               ▼
               ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-               0 1 2 3 4 p p p p p xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx│
-              └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+               0 1 2 3 4 * * * * * xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              │         │         │              │              │
+             p0        p1        p2             p3             p4
+
+```
+
+We have records 0-4, whilst records 5-9 are in flight, and records
+10-25 have yet to be requested.
+
+```javascript
+//from the last page (p4)
+record = state.get(23);
+record.isRequested //=> false
+record.isPending //=> false
+record.content //> null
+```
+
+Let's say we want to move the read head to offset 2 with a call to
+`dataset.setReadOffset(2)`. This will immediately emit a new state that
+looks like this:
+
+```
+                 Read
+                Offset
+                   ┃
+                   ┃
+     <──────────Load Horizon──────────>
+                   ┃
+                   ▼
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+               0 1 2 3 4 * * * * * ** ** ** ** ** xx xx xx xx xx xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              │         │         │              │              │
+             p0        p1        p2             p3             p4
+```
+
+You'll notice that the page at offset 2 has now been requested because
+it contains records that fall within the load horizon. The page at
+`p1` is still pending, but now `p2` is as well. What happens if the
+request for `p2` resolves *before* the request for `p1`? In that case,
+the dataset emits this state:
+
+```
+                 Read
+                Offset
+                   ┃
+                   ┃
+     <──────────Load Horizon──────────>
+                   ┃
+                   ▼
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+               0 1 2 3 4 * * * * * 10 11 12 13 14 xx xx xx xx xx xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              │         │         │              │              │
+             p0        p1        p2             p3             p4
+```
+
+In this way, impagination is resilient to the order of network
+requests because the records are "always available" and in their
+proper order,  albeit in their unrequested, pending, or resolved
+states.
+
+```javascript
+//records on p2 are now available
+record = state.get(10);
+record.isResolved //=> true
+record.content //=> 10
+
+//records on p1 are still pending
+record = state.get(7);
+record.isResolved //=> false
+record.isPending //=> true
+record.content //=> null
 ```
