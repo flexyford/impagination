@@ -20,7 +20,7 @@ used from node as well.
 ## Usage
 
 To get started, create a dataset. There are only two required parameters
-`fetch`, and `observe`:
+`fetch`, and `pageSize`:
 
 ```javascript
 import { Dataset } from 'impagination';
@@ -184,7 +184,7 @@ looks like this:
              p0        p1        p2             p3             p4
 ```
 
-You'll notice that the page at offset 2 has now been requested because
+You'll notice that the page at offset p2 has now been requested because
 it contains records that fall within the load horizon. The page at
 `p1` is still pending, but now `p2` is as well. What happens if the
 request for `p2` resolves *before* the request for `p1`? In that case,
@@ -237,7 +237,7 @@ its entirety*. This eliminates all guesswork and ambiguity from what
 the implications are so that you, the developer, have to do less work
 to maintain consistency.
 
-What this means in practice is that each of the states of observed by
+What this means in practice is that each of the states observed by
 the `observe` function are unique structures that are considered
 immutable. Each one stands alone and will continue to function
 properly even if you discard references to all other states and the
