@@ -222,3 +222,30 @@ record.isResolved //=> false
 record.isPending //=> true
 record.content //=> null
 ```
+
+### Impagination and Immutability
+
+In the mutable style of reactivity, you listen to events that report
+what changed about a datastructure, and then you're left to realize
+the implications of that change in your internal data structures (such
+as changing a record from `isPending` to `isResolved`). By contrast,
+Impagination uses an immutable style in which can be an initial source
+of confusion if you aren't familiar with it.
+
+In Impagination, each event __is__ the fully formed datastructure *in
+its entirety*. This eliminates all guesswork and ambiguity from what
+the implications are so that you, the developer, have to do less work
+to maintain consistency.
+
+What this means in practice is that each of the states of observed by
+the `observe` function are unique structures that are considered
+immutable. Each one stands alone and will continue to function
+properly even if you discard references to all other states and the
+dataset object itself. Furthermore, altering them will have no effect
+on neither prior nor subsequent states.
+
+If you are unfamiliar with an immutable style this may seem strange to you. You
+might be asking yourself: Is it not wasteful to recreate an *entire* potentially
+infinite data structure with every state transition? The answer is
+that each state is lazy and stores as little information as it needs
+to provide its API.
