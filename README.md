@@ -1,7 +1,7 @@
 # Impagination
 
 [![npm version](https://badge.fury.io/js/impagination.svg)](https://badge.fury.io/js/impagination)
-[![frontside approved](https://zm6o5z0kfa.execute-api.us-east-1.amazonaws.com/dev/badges/frontside/)](https://frontside.io)
+[![frontside approved](https://zm6o5z0kfa.execute-api.us-east-1.amazonaws.com/dev/badges/frontside/)](frontside.io)
 
 Put the *fun* back in asynchronous, paged, datasets.
 
