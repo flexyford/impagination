@@ -1,81 +1,34 @@
-/*global it, xit, describe, beforeEach, afterEach, xdescribe */
-/*jshint -W030 */ // Expected an assignment or function call and instead saw an expression
-
 import Dataset from '../src/dataset';
-import { describe, it } from 'mocha';
+
+import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
+import { Server, PageRequest } from './test-server';
 
-class Server {
-  loadFactories() {}
-  createList() {}
-  create() {}
-}
-
-
-class Factory {
-  static extend() {}
-}
 
 describe("Dataset", function() {
-  beforeEach(function () {
-    // Create Ember-Cli Server and Factories
-    this.server = new Server({environment: 'test'});
-    this.server.loadFactories({
-      record: Factory.extend({
-        name(i) { return `Record ${i}`; }
-      }),
-      page: Factory.extend({
-        name(i) { return `Page ${i}`; },
-        records: []
-      })
-    });
-  });
-  afterEach(function() {
-    this.server.shutdown();
-  });
-
-  it("exists", function() {
-    expect(Dataset).to.be.instanceOf(Object);
-  });
-
-  xit('works with asynchronous tests using promises', function() {
-    return new Promise(function(resolve) {
-      setTimeout(function() {
-        expect(true).to.equal(true);
-        resolve();
-      }, 10);
-    });
-  });
-
   describe("instantiating a new dataset", function() {
-
     it("cannot be instantiated without pageSize", function() {
       var err = "";
       try { new Dataset(); } catch(e) { err = e; }
       expect(err).to.match(/without pageSize/);
     });
-
     it("cannot be instantiated without fetch()", function () {
       var err = "";
       try { new Dataset({pageSize: 1}); } catch(e) { err = e; }
       expect(err).to.match(/without fetch/);
     });
 
-    describe("default constructor values", function() {
+    describe("with default constructor values", function() {
       beforeEach(function() {
+        this.server = new Server();
+        this.requests = this.server.requests;
         this.dataset = new Dataset({
           pageSize: 10,
-          fetch: function(pageOffset){
-            var data = {
-              records: new Array(10).fill(pageOffset + 1)
-            };
-            return new Promise((resolve) => {
-              resolve(data);
-            });
+          fetch: (pageOffset, pageSize, stats)=> {
+            return this.server.request(pageOffset, pageSize, stats);
           }
         });
       });
-
       it("has default constructor values", function() {
         expect(this.dataset._fetch).to.be.instanceOf(Function);
         expect(this.dataset._observe).to.be.instanceOf(Function);
@@ -87,32 +40,24 @@ describe("Dataset", function() {
         expect(this.dataset.state.loadHorizon).to.equal(1);
         expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
       });
+
+      it("begins the process of fetching a page", function() {
+        expect(this.server.requests.length).to.equal(1);
+        expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+      });
     });
   });
 
-  describe("thenables", function () {
+  describe("thenables", function() {
     beforeEach(function() {
+      this.server = new Server();
+      this.requests = this.server.requests;
       this.recordsPerPage = 10;
-      this.resolvers = [];
-      this.rejecters = [];
 
       this.options = {
         pageSize: this.recordsPerPage,
-        fetch: (pageOffset, pageSize, stats) => {
-          return new Promise((resolve, reject) => {
-            this.resolvers.push({
-              resolve: resolve,
-              pageOffset: pageOffset,
-              pageSize: pageSize,
-              stats: stats
-            });
-            this.rejecters.push({
-              reject: reject,
-              pageOffset: pageOffset,
-              pageSize: pageSize,
-              stats: stats
-            });
-          });
+        fetch: (pageOffset, pageSize, stats)=> {
+          return this.server.request(pageOffset, pageSize, stats);
         },
         observe: (state) => {
           this.state = state;
@@ -121,27 +66,12 @@ describe("Dataset", function() {
       this.dataset = new Dataset(this.options);
       this.initialState = this.state;
     });
-
-    it("captures the resolve", function() {
-      var resolve = this.resolvers[0].resolve;
-      expect(resolve.name).to.equal('resolvePromise');
-    });
-
-    it("captures the reject", function() {
-      var resolve = this.rejecters[0].reject;
-      expect(resolve.name).to.equal('rejectPromise');
-    });
-
-    it('captures the initial state', function () {
-      expect(this.initialState).to.be.instanceOf(Object);
-    });
-
     describe("resolving a fetched page", function() {
       beforeEach(function() {
-        var records = this.server.createList('record', this.recordsPerPage);
-        this.resolvers.forEach(function(obj) {
-          obj.resolve(records);
+        let records = Array.from(Array(10)).map((_, i)=> {
+          return {name: `Record ${i}`};
         });
+        return this.requests[0].resolve(records);
       });
       it("transitions state", function() {
         expect(this.state).not.to.equal(this.initialState);
@@ -159,80 +89,64 @@ describe("Dataset", function() {
       });
     });
 
-    describe("rejecting a fetched page", function() {
-
-      describe("with totalPages stats", function() {
-        beforeEach(function() {
-          this.rejecters.forEach(function(obj) {
-            obj.stats.totalPages = 5;
-            obj.reject();
-          });
-        });
-        it("transitions state", function() {
-          expect(this.state).not.to.equal(this.initialState);
-        });
-        it("loads the totalPages", function() {
-          expect(this.state.pages.length).to.equal(5);
-        });
-        it("marks the page as rejected", function() {
-          var page = this.state.pages[0];
-          expect(page.isRejected).to.be.true;
-        });
+    describe("rejecting a fetch page", function() {
+      beforeEach(function(done) {
+        let request = this.requests[0];
+        request.stats.totalPages = 5;
+        request.reject().then(done).catch(done);
       });
-
-      describe("without totalPages stats", function() {
-        beforeEach(function() {
-          this.rejecters.forEach(function(obj) {
-            obj.reject();
-          });
-        });
-        it("transitions state", function() {
-          expect(this.state).not.to.equal(this.initialState);
-        });
-        it('loads a single page', function () {
-          expect(this.state.pages.length).to.equal(1);
-        });
-        it("marks the page as rejected", function() {
-          var page = this.state.pages[0];
-          expect(page.isRejected).to.be.true;
-        });
+      it("transitions state", function() {
+        expect(this.state).not.to.equal(this.initialState);
       });
-
-      describe("with an error", function() {
-        beforeEach(function() {
-          this.rejecters.forEach(function(obj) {
-            obj.reject("404");
-          });
-        });
-        it("has an error message on the page", function() {
-          var page = this.state.pages[0];
-          expect(page.error).to.equal("404");
-        });
+      it("loads the totalPages", function() {
+        expect(this.state.pages.length).to.equal(5);
       });
-
+      it("marks the page as rejected", function() {
+        var page = this.state.pages[0];
+        expect(page.isRejected).to.be.true;
+      });
     });
 
+    describe("without totalPages stats", function() {
+      beforeEach(function(done) {
+        var request = this.server.requests[0];
+        return request.reject().then(done).catch(done);
+      });
+      it("transitions state", function() {
+        expect(this.state).not.to.equal(this.initialState);
+      });
+      it('loads a single page', function () {
+        expect(this.state.pages.length).to.equal(1);
+      });
+      it("marks the page as rejected", function() {
+        var page = this.state.pages[0];
+        expect(page.isRejected).to.be.true;
+      });
+    });
+
+    describe("with an error", function() {
+      beforeEach(function(done) {
+        var request = this.server.requests[0];
+        let finish = ()=> done();
+        return request.reject("404").then(finish).catch(finish);
+      });
+      it("has an error message on the page", function() {
+        var page = this.state.pages[0];
+        expect(page.error).to.equal("404");
+      });
+    });
   });
 
   describe("loading pages", function() {
     beforeEach(function() {
       this.totalPages = 5;
       this.recordsPerPage = 10;
-      this.pages = [];
-
-      for(var i = 0; i < this.totalPages; i+=1){
-        var records = this.server.createList('record', this.recordsPerPage);
-
-        this.pages.push( this.server.create('page', {records: records}) );
-      }
+      this.server = new Server();
 
       this.options = {
         pageSize: this.recordsPerPage,
-        fetch: (pageOffset) => {
-          var records = this.pages[pageOffset].records;
-          return new Promise((resolve) => {
-            resolve(records);
-          });
+        fetch: (pageOffset, pageSize, stats) => {
+          return this.server.request(pageOffset, pageSize, stats);
         },
         observe: (state) => {
           this.state = state;
@@ -266,7 +180,6 @@ describe("Dataset", function() {
           this.options.loadHorizon = 1;
           this.dataset = new Dataset(this.options);
         });
-
         it('loads a single page', function () {
           expect(this.state.pages.length).to.equal(1);
         });
@@ -300,14 +213,15 @@ describe("Dataset", function() {
           });
         });
       });
-    });
 
+    });
 
     describe("start loading from the beginning", function() {
       describe("with a single page load horizon", function() {
         beforeEach(function() {
           this.options.loadHorizon = 1;
           this.dataset = new Dataset(this.options);
+          return this.server.requests[0].resolve();
         });
 
         it('loads a single page', function () {
@@ -342,6 +256,7 @@ describe("Dataset", function() {
           this.options.loadHorizon = 1;
           this.options.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
+          return this.server.resolveAll();
         });
 
         it('initializes all pages up to the loadHorizon', function () {
@@ -390,6 +305,7 @@ describe("Dataset", function() {
           this.options.unloadHorizon = 2;
           this.options.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
+          return this.server.resolveAll();
         });
 
         it('initializes all pages up to the loadHorizon', function () {
@@ -423,6 +339,7 @@ describe("Dataset", function() {
           beforeEach(function() {
             var nextPageOffset = (2 * this.recordsPerPage) + this.options.initialReadOffset;
             this.dataset.setReadOffset(nextPageOffset);
+            return this.server.resolveAll();
           });
 
           it('initializes all pages up to the loadHorizon', function () {
@@ -458,6 +375,7 @@ describe("Dataset", function() {
         describe("decrementing the readOffset", function() {
           beforeEach(function() {
             this.dataset.setReadOffset(0);
+            return this.server.resolveAll();
           });
           it("unloads the page after the previous offset", function() {
             var unrequestedPage = this.state.pages[2];
@@ -487,7 +405,7 @@ describe("Dataset", function() {
         });
       });
 
-      describe("the end of total pages", function() {
+      describe.skip("the end of total pages", function() {
         beforeEach(function() {
           this.options.fetch = (pageOffset, pageSize, stats) => {
             var records,
@@ -633,7 +551,7 @@ describe("Dataset", function() {
       });
     });
 
-    describe("not resolving a fetched page", function() {
+    describe.skip("not resolving a fetched page", function() {
       beforeEach(function() {
         this.totalPages = 5;
         this.recordsPerPage = 10;
@@ -659,12 +577,12 @@ describe("Dataset", function() {
         this.dataset = new Dataset(this.options);
       });
 
-      xit("captures the resolve", function() {
+      it.skip("captures the resolve", function() {
         var resolve = this.resolvers[0];
         expect(resolve.name).to.equal('resolvePromise');
       });
 
-      xit("leaves the first page in a pending state", function() {
+      it.skip("leaves the first page in a pending state", function() {
         var page = this.state.pages[0];
         expect(page.isPending).to.be.true;
       });
@@ -723,7 +641,7 @@ describe("Dataset", function() {
       });
     });
 
-    describe("setting totalPages in statistics", function() {
+    describe.skip("setting totalPages in statistics", function() {
       beforeEach(function() {
         this.totalPages = 5;
         this.recordsPerPage = 10;
@@ -800,12 +718,12 @@ describe("Dataset", function() {
       });
     });
 
-    xdescribe("with no fetch function", function() {
+    describe.skip("with no fetch function", function() {
       it("emits an observation of the state");
       it("indicates that the dataset is not doing any loading");
     });
 
-    xdescribe("with a fetch function and the default load horizon", function() {
+    describe.skip("with a fetch function and the default load horizon", function() {
       it("requests the first page");
       it("now has a requested page");
       it("indicates that the dataset is now loading");
@@ -819,12 +737,6 @@ describe("Dataset", function() {
         it("contains empty objects for the items that have not even been requested");
         it("contains unequested pages for the pages that have not been requested");
       });
-    });
-
-    afterEach(function() {
-      delete this.dataset;
-      delete this.model;
-      delete this.fetches;
     });
   });
 });
