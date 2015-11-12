@@ -41,9 +41,18 @@ describe("Dataset", function() {
         expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
       });
 
-      it("begins the process of fetching a page", function() {
-        expect(this.server.requests.length).to.equal(1);
-        expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+      it("does not request a page fetch", function() {
+        expect(this.server.requests.length).to.equal(0);
+      });
+
+      describe("requesting a page", function() {
+        beforeEach(function() {
+          this.dataset.setReadOffset(0);
+        });
+        it("begins the process of fetching a page", function() {
+          expect(this.server.requests.length).to.equal(1);
+          expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+        });
       });
     });
   });
@@ -64,6 +73,7 @@ describe("Dataset", function() {
         }
       };
       this.dataset = new Dataset(this.options);
+      this.dataset.setReadOffset(0);
       this.initialState = this.state;
     });
     describe("resolving a fetched page", function() {
@@ -158,6 +168,7 @@ describe("Dataset", function() {
       beforeEach(function() {
         this.options.loadHorizon = 2;
         this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(0);
       });
       it("sets the loadHorizon", function () {
         expect(this.dataset.state.loadHorizon).to.equal(2);
@@ -168,6 +179,7 @@ describe("Dataset", function() {
       beforeEach(function () {
         this.options.unloadHorizon = 3;
         this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(0);
       });
       it("sets the unloadHorizon", function () {
         expect(this.dataset.state.unloadHorizon).to.equal(3);
@@ -179,6 +191,7 @@ describe("Dataset", function() {
         beforeEach(function() {
           this.options.loadHorizon = 1;
           this.dataset = new Dataset(this.options);
+          this.dataset.setReadOffset(0);
         });
         it('loads a single page', function () {
           expect(this.state.pages.length).to.equal(1);
@@ -221,6 +234,7 @@ describe("Dataset", function() {
         beforeEach(function() {
           this.options.loadHorizon = 1;
           this.dataset = new Dataset(this.options);
+          this.dataset.setReadOffset(0);
           return this.server.requests[0].resolve();
         });
 
@@ -254,8 +268,9 @@ describe("Dataset", function() {
         beforeEach(function() {
           var middlePageOffset = 2 * this.recordsPerPage;
           this.options.loadHorizon = 1;
-          this.options.initialReadOffset = middlePageOffset;
+          this.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
+          this.dataset.setReadOffset(this.initialReadOffset);
           return this.server.resolveAll();
         });
 
@@ -303,8 +318,9 @@ describe("Dataset", function() {
           var middlePageOffset = 2 * this.recordsPerPage;
           this.options.loadHorizon = 1;
           this.options.unloadHorizon = 2;
-          this.options.initialReadOffset = middlePageOffset;
+          this.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
+          this.dataset.setReadOffset(this.initialReadOffset);
           return this.server.resolveAll();
         });
 
@@ -337,7 +353,7 @@ describe("Dataset", function() {
 
         describe("incrementing the readOffset", function() {
           beforeEach(function() {
-            var nextPageOffset = (2 * this.recordsPerPage) + this.options.initialReadOffset;
+            var nextPageOffset = (2 * this.recordsPerPage) + this.initialReadOffset;
             this.dataset.setReadOffset(nextPageOffset);
             return this.server.resolveAll();
           });
@@ -428,13 +444,14 @@ describe("Dataset", function() {
         describe("setting the read head at the total page boundary", function() {
           beforeEach(function() {
             var offset = this.totalPages * this.recordsPerPage;
-            this.options.initialReadOffset = offset;
+            this.initialReadOffset = offset;
           });
 
           describe("with a single page load horizon", function() {
             beforeEach(function() {
               this.options.loadHorizon = 1;
               this.dataset = new Dataset(this.options);
+              this.dataset.setReadOffset(this.initialReadOffset);
             });
 
             it('initializes only pages up to the total number of pages', function () {
@@ -449,7 +466,7 @@ describe("Dataset", function() {
             });
 
             it('loads one resolved page within the loadHorizon', function () {
-              var resolvedPages = this.state.pages.slice(this.options.initialReadOffset - this.options.loadHorizon, this.totalPages);
+              var resolvedPages = this.state.pages.slice(this.initialReadOffset - this.options.loadHorizon, this.totalPages);
               resolvedPages.forEach(function (resolvedPage) {
                 expect(resolvedPage.isResolved).to.be.true;
               });
@@ -461,7 +478,7 @@ describe("Dataset", function() {
           beforeEach(function() {
             this.initialPageOffset = this.totalPages + 1;
             var offset = this.initialPageOffset * this.recordsPerPage;
-            this.options.initialReadOffset = offset;
+            this.initialReadOffset = offset;
           });
 
           describe("when reject() returns the total number of pages", function() {
@@ -488,6 +505,7 @@ describe("Dataset", function() {
               beforeEach(function() {
                 this.options.loadHorizon = 1;
                 this.dataset = new Dataset(this.options);
+                this.dataset.setReadOffset(0);
               });
 
               it('initializes only pages up to the total number of pages', function () {
@@ -526,6 +544,7 @@ describe("Dataset", function() {
               beforeEach(function() {
                 this.options.loadHorizon = 1;
                 this.dataset = new Dataset(this.options);
+                this.dataset.setReadOffset(0);
               });
 
               it('initializes pages up to and including the requested offset', function () {
@@ -540,7 +559,7 @@ describe("Dataset", function() {
               });
 
               it('loads one resolved page within the loadHorizon', function () {
-                var resolvedPages = this.state.pages.slice(this.options.initialReadOffset - this.options.loadHorizon, this.totalPages);
+                var resolvedPages = this.state.pages.slice(this.initialReadOffset - this.options.loadHorizon, this.totalPages);
                 resolvedPages.forEach(function (resolvedPage) {
                   expect(resolvedPage.isResolved).to.be.true;
                 });
@@ -575,6 +594,7 @@ describe("Dataset", function() {
           observe: (state) => { this.state = state; }
         };
         this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(0);
       });
 
       it.skip("captures the resolve", function() {
@@ -657,7 +677,6 @@ describe("Dataset", function() {
         var initialRecordOffset = this.recordsPerPage;
         this.options = {
           pageSize: this.recordsPerPage,
-          initialReadOffset: initialRecordOffset,
           loadHorizon: 2,
           fetch: (pageOffset, pageSize, stats) => {
             return new Promise((resolve, reject) => {
@@ -676,6 +695,7 @@ describe("Dataset", function() {
           observe: (state) => { this.state = state; }
         };
         this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(initialRecordOffset);
       });
 
       describe("resolving the first page with 10 pages", function() {
