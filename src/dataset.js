@@ -48,7 +48,6 @@ export default class Dataset {
     if (!options.fetch) {
       throw new Error('created Dataset without fetch()');
     }
-    var initialReadOffset = options.initialReadOffset || 0;
 
     this._pageSize = options.pageSize;
     this._fetch = options.fetch;
@@ -59,7 +58,6 @@ export default class Dataset {
     this.state.pageSize = this._pageSize;
     this.state.loadHorizon = options.loadHorizon || 1;
     this.state.unloadHorizon = options.unloadHorizon || Infinity;
-    this.setReadOffset(initialReadOffset); // Initial Page Fetch
   }
 
   setReadOffset(readOffset) {
