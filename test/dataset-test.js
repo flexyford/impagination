@@ -313,7 +313,7 @@ describe("Dataset", function() {
         });
       });
 
-      describe("with a single page unload horizon", function() {
+      describe("with a two page unload horizon", function() {
         beforeEach(function() {
           var middlePageOffset = 2 * this.recordsPerPage;
           this.options.loadHorizon = 1;
@@ -351,10 +351,10 @@ describe("Dataset", function() {
           expect(content.name).to.equal('Record 20');
         });
 
-        describe("incrementing the readOffset", function() {
+        describe("incrementing the readOffset by the unload horizon", function() {
           beforeEach(function() {
-            var nextPageOffset = (2 * this.recordsPerPage) + this.initialReadOffset;
-            this.dataset.setReadOffset(nextPageOffset);
+            var incPageOffset = this.initialReadOffset + this.options.unloadHorizon * this.recordsPerPage;
+            this.dataset.setReadOffset(incPageOffset);
             return this.server.resolveAll();
           });
 
@@ -388,9 +388,83 @@ describe("Dataset", function() {
             expect(content.name).to.equal('Record 40');
           });
         });
-        describe("decrementing the readOffset", function() {
+
+        describe("incrementing the readOffset such that the load horizon extends into an unrequested page", function() {
           beforeEach(function() {
-            this.dataset.setReadOffset(0);
+            var incPageOffset = this.initialReadOffset + 1;
+            this.dataset.setReadOffset(incPageOffset);
+            return this.server.resolveAll();
+          });
+
+          it('initializes all pages up to the loadHorizon', function () {
+            expect(this.state.pages.length).to.equal(4);
+          });
+
+          it('loads a single page of records before the offset', function () {
+            var beforeOffsetResolvedPages = this.state.pages[1];
+            var records = beforeOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(beforeOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 10');
+          });
+
+          it('loads a single page of records at the offset', function () {
+            var atOffsetResolvedPages = this.state.pages[2];
+            var records = atOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(atOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 20');
+          });
+
+          it('loads a single page of records after the offset', function () {
+            var afterOffsetResolvedPages = this.state.pages[3];
+            var records = afterOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(afterOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 30');
+          });
+        });
+
+        describe("decrementing the readOffset such that the load horizon extends into an unrequested page", function() {
+          beforeEach(function() {
+            var incPageOffset = this.initialReadOffset - 1;
+            this.dataset.setReadOffset(incPageOffset);
+            return this.server.resolveAll();
+          });
+
+          it('initializes all pages up to the loadHorizon', function () {
+            expect(this.state.pages.length).to.equal(3);
+          });
+
+          it('loads a single page of records before the offset', function () {
+            var beforeOffsetResolvedPages = this.state.pages[0];
+            var records = beforeOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(beforeOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 0');
+          });
+
+          it('loads a single page of records at the offset', function () {
+            var atOffsetResolvedPages = this.state.pages[1];
+            var records = atOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(atOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 10');
+          });
+
+          it('loads a single page of records after the offset', function () {
+            var afterOffsetResolvedPages = this.state.pages[2];
+            var records = afterOffsetResolvedPages.records;
+            var content = records[0].content;
+            expect(afterOffsetResolvedPages.isRequested).to.be.true;
+            expect(content.name).to.equal('Record 20');
+          });
+        });
+
+        describe("decrementing the readOffset by the unload horizon", function() {
+          beforeEach(function() {
+            var decPageOffset = this.initialReadOffset - (this.options.unloadHorizon * this.recordsPerPage);
+            this.dataset.setReadOffset(decPageOffset);
             return this.server.resolveAll();
           });
           it("unloads the page after the previous offset", function() {

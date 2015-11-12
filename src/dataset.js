@@ -68,11 +68,11 @@ export default class Dataset {
       next.pageOffset = pageOffset;
       var pages = next.pages;
 
-      var minLoadHorizon = Math.max(pageOffset - next.loadHorizon, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, pageOffset + next.loadHorizon);
+      var minLoadHorizon = Math.max(Math.floor(readOffset / next.pageSize) - next.loadHorizon, 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil(readOffset / next.pageSize) + next.loadHorizon);
 
-      var minUnloadHorizon = Math.max(pageOffset - next.unloadHorizon, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, pageOffset + next.unloadHorizon, pages.length);
+      var minUnloadHorizon = Math.max(Math.floor(readOffset / next.pageSize) - next.unloadHorizon, 0);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil(readOffset / next.pageSize) + next.unloadHorizon, pages.length);
 
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
