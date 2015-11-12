@@ -32,10 +32,15 @@ class State {
     return next;
   }
 
-  get records() {
-    return this.pages.reduce(function(records, page) {
-      return records.concat(page.records);
-    }, []);
+  get length() {
+    return this.totalSize;
+  }
+
+  get(index) {
+    let pageOffset = Math.floor(index / this.pageSize);
+    let recordOffset = index % this.pageSize;
+    let records = this.pages[pageOffset].data;
+    return records[recordOffset];
   }
 }
 
@@ -89,6 +94,8 @@ export default class Dataset {
         this._touchPage(pages, i);
       }
 
+      this._adjustTotalRecords(next);
+
       // Request and Fetch Records within the `loadHorizons`
       for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
         let page = this._touchPage(pages, i);
@@ -134,6 +141,13 @@ export default class Dataset {
       // remove pages
       pages.splice(stats.totalPages, pages.length);
     }
+
+  }
+
+  _adjustTotalRecords(state) {
+    state.totalSize = state.pages.reduce(function(length, page) {
+      return length + page.records.length;
+    }, 0);
   }
 
   _fetchPage(page) {
@@ -147,6 +161,7 @@ export default class Dataset {
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.resolve(records);
         this._adjustTotalPages(next.pages, stats);
+        this._adjustTotalRecords(next);
       });
       this._observe(this.state = state);
     }).catch((error = {}) => {
@@ -156,6 +171,7 @@ export default class Dataset {
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.reject(error);
         this._adjustTotalPages(next.pages, stats);
+        this._adjustTotalRecords(next);
       });
       this._observe(this.state = state);
     });
