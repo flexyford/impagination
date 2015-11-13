@@ -36,7 +36,7 @@ describe("Dataset", function() {
 
       it("initializes the state", function() {
         expect(this.dataset.state).to.be.instanceOf(Object);
-        expect(this.dataset.state.totalSize).to.equal(0);
+        expect(this.dataset.state.length).to.equal(0);
         expect(this.dataset.state.loadHorizon).to.equal(1);
         expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
       });
@@ -50,8 +50,11 @@ describe("Dataset", function() {
           this.dataset.setReadOffset(0);
         });
         it("begins the process of fetching a page", function() {
+          let record = this.dataset.state.get(0);
           expect(this.server.requests.length).to.equal(1);
           expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+          expect(this.dataset.state.length).to.equal(10);
+          expect(record).to.be.empty;
         });
       });
     });
@@ -91,11 +94,10 @@ describe("Dataset", function() {
         expect(this.state.pages[0].isResolved).to.be.true;
       });
       it('loads a single page of records', function () {
-        var page = this.state.pages[0];
-        var records = page.records;
-        var content = records[0].content;
-        expect(records.length).to.equal(this.recordsPerPage);
-        expect(content.name).to.equal('Record 0');
+        var record_0 = this.state.get(0);
+        var record_10 = this.state.get(10);
+        expect(record_0).to.exist;
+        expect(record_10).to.not.exist;
       });
     });
 
@@ -198,7 +200,7 @@ describe("Dataset", function() {
         });
 
         it('loads a single page of records', function () {
-          expect(this.state.records.length).to.equal(this.recordsPerPage);
+          expect(this.state.length).to.equal(this.recordsPerPage);
         });
 
         describe("at an incremented readOffset within the same page", function() {
@@ -222,7 +224,7 @@ describe("Dataset", function() {
             expect(this.state).not.to.equal(this.prevState);
           });
           it("loads an additional page", function() {
-            expect(this.state.records.length).to.equal(2 * this.recordsPerPage);
+            expect(this.state.length).to.equal(2 * this.recordsPerPage);
           });
         });
       });
@@ -243,12 +245,10 @@ describe("Dataset", function() {
         });
 
         it('loads a single page of records', function () {
-          var page = this.state.pages[0];
-          var records = page.records;
-          var content = records[0].content;
-          expect(records).to.be.instanceOf(Array);
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 0');
+          var record_0 = this.state.get(0);
+          var record_10 = this.state.get(10);
+          expect(record_0).to.exist;
+          expect(record_10).to.not.exist;
         });
 
         describe("loading the next page", function() {
@@ -276,6 +276,7 @@ describe("Dataset", function() {
 
         it('initializes all pages up to the loadHorizon', function () {
           expect(this.state.pages.length).to.equal(3);
+          expect(this.state.length).to.equal(30);
         });
 
         it('loads page 0 as an unrequested page', function () {
@@ -290,26 +291,22 @@ describe("Dataset", function() {
         });
 
         it("has an empty set of records on the first page", function() {
-          var unrequestedPage = this.state.pages[0];
-          var records = unrequestedPage.records;
-          expect(records.length).to.equal(10);
-          expect(records[0].content).to.be.empty;
+          var record = this.state.get(0);
+          expect(record).to.be.empty;
+
         });
 
         it('loads a single page of records before the offset', function () {
-          var beforeOffsetResolvedPages = this.state.pages[1];
-          var records = beforeOffsetResolvedPages.records;
-          var content = records[0].content;
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 10');
+          let index = this.initialReadOffset - this.recordsPerPage;
+          var record = this.state.get(index);
+          expect(record).to.exist;
         });
 
-        it('loads a single page of records after the offset', function () {
-          var afterOffsetResolvedPages = this.state.pages[2];
-          var records = afterOffsetResolvedPages.records;
-          var content = records[0].content;
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 20');
+        it('loads a single page of records at the offset', function () {
+          let index = this.initialReadOffset;
+          var record = this.state.get(index);
+          expect(record).to.exist;
+          expect(record.name).to.equal('Record 20');
         });
       });
 
@@ -329,26 +326,22 @@ describe("Dataset", function() {
         });
 
         it("does not have data defined on the first page", function() {
-          var unrequestedPage = this.state.pages[0];
-          var records = unrequestedPage.records;
-          expect(records.length).to.equal(10);
-          expect(records[0].content).to.be.empty;
+          var record = this.state.get(0);
+          expect(record).to.be.empty;
         });
 
         it('loads a single page of records before the offset', function () {
           var beforeOffsetResolvedPages = this.state.pages[1];
-          var records = beforeOffsetResolvedPages.records;
-          var content = records[0].content;
+          var record = this.state.get(10);
           expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-          expect(content.name).to.equal('Record 10');
+          expect(record.name).to.equal('Record 10');
         });
 
         it('loads a single page of records after the offset', function () {
           var afterOffsetResolvedPages = this.state.pages[2];
-          var records = afterOffsetResolvedPages.records;
-          var content = records[0].content;
+          var record = this.state.get(20);
           expect(afterOffsetResolvedPages.isRequested).to.be.true;
-          expect(content.name).to.equal('Record 20');
+          expect(record.name).to.equal('Record 20');
         });
 
         describe("incrementing the readOffset by the unload horizon", function() {
@@ -360,6 +353,7 @@ describe("Dataset", function() {
 
           it('initializes all pages up to the loadHorizon', function () {
             expect(this.state.pages.length).to.equal(5);
+            expect(this.state.length).to.equal(50);
           });
 
           it("unloads the page before the previous offset", function() {
@@ -374,18 +368,16 @@ describe("Dataset", function() {
 
           it('loads a single page of records before the offset', function () {
             var beforeOffsetResolvedPages = this.state.pages[3];
-            var records = beforeOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(30);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 30');
+            expect(record.name).to.equal('Record 30');
           });
 
           it('loads a single page of records after the offset', function () {
             var afterOffsetResolvedPages = this.state.pages[4];
-            var records = afterOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(40);
             expect(afterOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 40');
+            expect(record.name).to.equal('Record 40');
           });
         });
 
@@ -402,26 +394,23 @@ describe("Dataset", function() {
 
           it('loads a single page of records before the offset', function () {
             var beforeOffsetResolvedPages = this.state.pages[1];
-            var records = beforeOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(10);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 10');
+            expect(record.name).to.equal('Record 10');
           });
 
           it('loads a single page of records at the offset', function () {
             var atOffsetResolvedPages = this.state.pages[2];
-            var records = atOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(20);
             expect(atOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 20');
+            expect(record.name).to.equal('Record 20');
           });
 
           it('loads a single page of records after the offset', function () {
             var afterOffsetResolvedPages = this.state.pages[3];
-            var records = afterOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(30);
             expect(afterOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 30');
+            expect(record.name).to.equal('Record 30');
           });
         });
 
@@ -438,26 +427,23 @@ describe("Dataset", function() {
 
           it('loads a single page of records before the offset', function () {
             var beforeOffsetResolvedPages = this.state.pages[0];
-            var records = beforeOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(0);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 0');
+            expect(record).to.not.be.empty;
           });
 
           it('loads a single page of records at the offset', function () {
             var atOffsetResolvedPages = this.state.pages[1];
-            var records = atOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(10);
             expect(atOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 10');
+            expect(record).to.not.be.empty;
           });
 
           it('loads a single page of records after the offset', function () {
             var afterOffsetResolvedPages = this.state.pages[2];
-            var records = afterOffsetResolvedPages.records;
-            var content = records[0].content;
+            var record = this.state.get(20);
             expect(afterOffsetResolvedPages.isRequested).to.be.true;
-            expect(content.name).to.equal('Record 20');
+            expect(record).to.not.be.empty;
           });
         });
 
@@ -478,19 +464,13 @@ describe("Dataset", function() {
           });
 
           it('loads a single page of records before the offset', function () {
-            var beforeOffsetResolvedPages = this.state.pages[0];
-            var records = beforeOffsetResolvedPages.records;
-            var content = records[0].content;
-            expect(records.length).to.equal(this.recordsPerPage);
-            expect(content.name).to.equal('Record 0');
+            var record = this.state.get(0);
+            expect(record).to.not.be.empty;
           });
 
           it('loads a single page of records after the offset', function () {
-            var afterOffsetResolvedPages = this.state.pages[1];
-            var records = afterOffsetResolvedPages.records;
-            var content = records[0].content;
-            expect(records.length).to.equal(this.recordsPerPage);
-            expect(content.name).to.equal('Record 10');
+            var record = this.state.get(10);
+            expect(record).to.not.be.empty;
           });
         });
       });
@@ -809,27 +789,6 @@ describe("Dataset", function() {
             });
           });
         });
-      });
-    });
-
-    describe.skip("with no fetch function", function() {
-      it("emits an observation of the state");
-      it("indicates that the dataset is not doing any loading");
-    });
-
-    describe.skip("with a fetch function and the default load horizon", function() {
-      it("requests the first page");
-      it("now has a requested page");
-      it("indicates that the dataset is now loading");
-      it("indicates that the first page is loading");
-      describe("when the first page resolves", function() {
-        it("integrates the statistics");
-        it("reflects the total number of records");
-        it("reflects the total number of pages");
-        it("indicates that the dataset is no longer loading");
-        it("indicates that the page is no longer loading");
-        it("contains empty objects for the items that have not even been requested");
-        it("contains unequested pages for the pages that have not been requested");
       });
     });
   });
