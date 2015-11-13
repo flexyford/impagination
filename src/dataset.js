@@ -10,7 +10,7 @@ class State {
     this.stats = {
       totalPages: undefined
     };
-    this.totalSize = 0;
+    this.length = 0;
   }
 
   update(change) {
@@ -19,7 +19,7 @@ class State {
     next.isResolved = this.isResolved;
     next.isRejected = this.isRejected;
     next.isSettled = this.isSettled;
-    next.totalSize = this.totalSize;
+    next.length = this.length;
     next.pageSize = this.pageSize;
     next.loadHorizon = this.loadHorizon;
     next.unloadHorizon = this.unloadHorizon;
@@ -30,10 +30,6 @@ class State {
     change.call(this, next);
     next.pages = Object.freeze(next.pages);
     return next;
-  }
-
-  get length() {
-    return this.totalSize;
   }
 
   get(index) {
@@ -145,7 +141,7 @@ export default class Dataset {
   }
 
   _adjustTotalRecords(state) {
-    state.totalSize = state.pages.reduce(function(length, page) {
+    state.length = state.pages.reduce(function(length, page) {
       return length + page.records.length;
     }, 0);
   }

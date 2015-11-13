@@ -36,7 +36,7 @@ describe("Dataset", function() {
 
       it("initializes the state", function() {
         expect(this.dataset.state).to.be.instanceOf(Object);
-        expect(this.dataset.state.totalSize).to.equal(0);
+        expect(this.dataset.state.length).to.equal(0);
         expect(this.dataset.state.loadHorizon).to.equal(1);
         expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
       });
@@ -53,7 +53,7 @@ describe("Dataset", function() {
           let record = this.dataset.state.get(0);
           expect(this.server.requests.length).to.equal(1);
           expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
-          expect(this.dataset.state.totalSize).to.equal(10);
+          expect(this.dataset.state.length).to.equal(10);
           expect(record).to.be.empty;
         });
       });
