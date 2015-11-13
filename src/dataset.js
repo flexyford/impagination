@@ -34,9 +34,13 @@ class State {
 
   get(index) {
     let pageOffset = Math.floor(index / this.pageSize);
-    let recordOffset = index % this.pageSize;
-    let records = this.pages[pageOffset].data;
-    return records[recordOffset];
+    let records = this.pages[pageOffset];
+    if (records) {
+      let recordOffset = index % this.pageSize;
+      return records.data[recordOffset];
+    } else {
+      return undefined;
+    }
   }
 }
 

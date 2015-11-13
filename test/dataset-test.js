@@ -94,11 +94,10 @@ describe("Dataset", function() {
         expect(this.state.pages[0].isResolved).to.be.true;
       });
       it('loads a single page of records', function () {
-        var page = this.state.pages[0];
-        var records = page.records;
-        var content = this.state.get(0);
-        expect(records.length).to.equal(this.recordsPerPage);
-        expect(content.name).to.equal('Record 0');
+        var record_0 = this.state.get(0);
+        var record_10 = this.state.get(10);
+        expect(record_0).to.exist;
+        expect(record_10).to.not.exist;
       });
     });
 
@@ -246,12 +245,10 @@ describe("Dataset", function() {
         });
 
         it('loads a single page of records', function () {
-          var page = this.state.pages[0];
-          var records = page.records;
-          var content = this.state.get(0);
-          expect(records).to.be.instanceOf(Array);
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 0');
+          var record_0 = this.state.get(0);
+          var record_10 = this.state.get(10);
+          expect(record_0).to.exist;
+          expect(record_10).to.not.exist;
         });
 
         describe("loading the next page", function() {
@@ -300,19 +297,16 @@ describe("Dataset", function() {
         });
 
         it('loads a single page of records before the offset', function () {
-          var beforeOffsetResolvedPages = this.state.pages[1];
-          var records = beforeOffsetResolvedPages.records;
-          var content = this.state.get(10);
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 10');
+          let index = this.initialReadOffset - this.recordsPerPage;
+          var record = this.state.get(index);
+          expect(record).to.exist;
         });
 
-        it('loads a single page of records after the offset', function () {
-          var afterOffsetResolvedPages = this.state.pages[2];
-          var records = afterOffsetResolvedPages.records;
-          var content = records[0].content;
-          expect(records.length).to.equal(this.recordsPerPage);
-          expect(content.name).to.equal('Record 20');
+        it('loads a single page of records at the offset', function () {
+          let index = this.initialReadOffset;
+          var record = this.state.get(index);
+          expect(record).to.exist;
+          expect(record.name).to.equal('Record 20');
         });
       });
 
