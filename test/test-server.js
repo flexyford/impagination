@@ -42,7 +42,7 @@ export class Server {
     return this.requests[pageOffset] = new PageRequest(pageOffset, pageSize, stats);
   }
 
-  remove(pageOffset) {
+  remove(records, pageOffset) {
     let  unfetchedPage = this.requests[pageOffset];
     delete this.requests[pageOffset];
     return unfetchedPage;

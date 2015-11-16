@@ -115,7 +115,7 @@ export default class Dataset {
   _unloadPage(pages, i) {
     let page = this._touchPage(pages, i);
     if (page.isRequested) {
-      this._unfetch.call(this, page.offset);
+      this._unfetch.call(this, page.data, page.offset);
       page = page.unload();
       pages.splice(i, 1, page);
     }
@@ -148,7 +148,7 @@ export default class Dataset {
 
   _adjustTotalRecords(state) {
     state.length = state.pages.reduce(function(length, page) {
-      return length + page.records.length;
+      return length + page.data.length;
     }, 0);
   }
 

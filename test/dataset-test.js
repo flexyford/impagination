@@ -160,8 +160,8 @@ describe("Dataset", function() {
         fetch: (pageOffset, pageSize, stats) => {
           return this.server.request(pageOffset, pageSize, stats);
         },
-        unfetch: (pageOffset)=> {
-          return this.server.remove(pageOffset);
+        unfetch: (records, pageOffset)=> {
+          return this.server.remove(records, pageOffset);
         },
         observe: (state) => {
           this.state = state;
