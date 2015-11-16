@@ -24,7 +24,6 @@ class State {
     next.loadHorizon = this.loadHorizon;
     next.unloadHorizon = this.unloadHorizon;
     next.readOffset = this.readOffset;
-    next.pageOffset = this.pageOffset;
     next.pages = this.pages.slice();
     next.stats.totalPages = this.stats.totalPages;
     change.call(this, next);
@@ -58,27 +57,23 @@ export default class Dataset {
     this._fetch = options.fetch;
     this._unfetch = options.unfetch || function() {};
     this._observe = options.observe || function() {};
-    // this._loadHorizon = options.loadHorizon || 1;
-    // this._unloadHorizon = options.unloadHorizon || Infinity;
     this.state = new State();
     this.state.pageSize = this._pageSize;
-    this.state.loadHorizon = options.loadHorizon || 1;
+    this.state.loadHorizon = options.loadHorizon || this._pageSize;
     this.state.unloadHorizon = options.unloadHorizon || Infinity;
   }
 
   setReadOffset(readOffset) {
-    var pageOffset = Math.floor(readOffset / this.state.pageSize);
     if (this.state.readOffset === readOffset) { return; }
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
-      next.pageOffset = pageOffset;
       var pages = next.pages;
 
-      var minLoadHorizon = Math.max(Math.floor(readOffset / next.pageSize) - next.loadHorizon, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil(readOffset / next.pageSize) + next.loadHorizon);
+      var minLoadHorizon = Math.max(Math.floor((readOffset  - next.loadHorizon) / next.pageSize), 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil((readOffset  + next.loadHorizon) / next.pageSize));
 
-      var minUnloadHorizon = Math.max(Math.floor(readOffset / next.pageSize) - next.unloadHorizon, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil(readOffset / next.pageSize) + next.unloadHorizon, pages.length);
+      var minUnloadHorizon = Math.max(Math.floor((readOffset - next.unloadHorizon) / next.pageSize), 0);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize), pages.length);
 
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
