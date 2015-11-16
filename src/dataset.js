@@ -41,6 +41,10 @@ class State {
       return undefined;
     }
   }
+
+  getPageOffset() {
+    return Math.floor(this.readOffset / this.pageSize);
+  }
 }
 
 export default class Dataset {
