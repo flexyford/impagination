@@ -127,7 +127,7 @@ Another interesting thing that happened here is that the length of the
 dataset has also changed.
 
 ```javascript
-state.length //=> 30
+state.length //=> 25 (stats.totalPages: 5, pageSize: 5)
 ```
 
 This has to do with the `stats` parameter that is passed into the
