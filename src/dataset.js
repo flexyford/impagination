@@ -56,6 +56,7 @@ export default class Dataset {
 
     this._pageSize = options.pageSize;
     this._fetch = options.fetch;
+    this._unfetch = options.unfetch || function() {};
     this._observe = options.observe || function() {};
     // this._loadHorizon = options.loadHorizon || 1;
     // this._unloadHorizon = options.unloadHorizon || Infinity;
@@ -114,6 +115,7 @@ export default class Dataset {
   _unloadPage(pages, i) {
     let page = this._touchPage(pages, i);
     if (page.isRequested) {
+      this._unfetch.call(this, page.data, page.offset);
       page = page.unload();
       pages.splice(i, 1, page);
     }
@@ -146,7 +148,7 @@ export default class Dataset {
 
   _adjustTotalRecords(state) {
     state.length = state.pages.reduce(function(length, page) {
-      return length + page.records.length;
+      return length + page.data.length;
     }, 0);
   }
 

@@ -42,6 +42,12 @@ export class Server {
     return this.requests[pageOffset] = new PageRequest(pageOffset, pageSize, stats);
   }
 
+  remove(records, pageOffset) {
+    let  unfetchedPage = this.requests[pageOffset];
+    delete this.requests[pageOffset];
+    return unfetchedPage;
+  }
+
   /**
    * Resolve all requests that this server knows about, and return a
    * promise that can be used to synchronize the test case until all
