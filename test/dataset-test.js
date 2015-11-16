@@ -54,7 +54,7 @@ describe("Dataset", function() {
           expect(this.server.requests.length).to.equal(1);
           expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
           expect(this.dataset.state.length).to.equal(10);
-          expect(record).to.be.empty;
+          expect(record.content).to.be.empty;
         });
       });
     });
@@ -293,7 +293,7 @@ describe("Dataset", function() {
 
         it("has an empty set of records on the first page", function() {
           var record = this.state.get(0);
-          expect(record).to.be.empty;
+          expect(record.content).to.be.empty;
 
         });
 
@@ -307,7 +307,7 @@ describe("Dataset", function() {
           let index = this.initialReadOffset;
           var record = this.state.get(index);
           expect(record).to.exist;
-          expect(record.name).to.equal('Record 20');
+          expect(record.content.name).to.equal('Record 20');
         });
       });
 
@@ -328,21 +328,22 @@ describe("Dataset", function() {
 
         it("does not have data defined on the first page", function() {
           var record = this.state.get(0);
-          expect(record).to.be.empty;
+          expect(record.content).to.be.empty;
         });
 
         it('loads a single page of records before the offset', function () {
           var beforeOffsetResolvedPages = this.state.pages[1];
           var record = this.state.get(10);
           expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-          expect(record.name).to.equal('Record 10');
+          expect(record.isResolved).to.be.true;
+          expect(record.content.name).to.equal('Record 10');
         });
 
         it('loads a single page of records after the offset', function () {
           var afterOffsetResolvedPages = this.state.pages[2];
           var record = this.state.get(20);
           expect(afterOffsetResolvedPages.isRequested).to.be.true;
-          expect(record.name).to.equal('Record 20');
+          expect(record.content.name).to.equal('Record 20');
         });
 
         describe("incrementing the readOffset by the unload horizon", function() {
@@ -381,14 +382,14 @@ describe("Dataset", function() {
             var beforeOffsetResolvedPages = this.state.pages[3];
             var record = this.state.get(30);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-            expect(record.name).to.equal('Record 30');
+            expect(record.content.name).to.equal('Record 30');
           });
 
           it('loads a single page of records after the offset', function () {
             var afterOffsetResolvedPages = this.state.pages[4];
             var record = this.state.get(40);
             expect(afterOffsetResolvedPages.isRequested).to.be.true;
-            expect(record.name).to.equal('Record 40');
+            expect(record.content.name).to.equal('Record 40');
           });
         });
 
@@ -407,21 +408,21 @@ describe("Dataset", function() {
             var beforeOffsetResolvedPages = this.state.pages[1];
             var record = this.state.get(10);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
-            expect(record.name).to.equal('Record 10');
+            expect(record.content.name).to.equal('Record 10');
           });
 
           it('loads a single page of records at the offset', function () {
             var atOffsetResolvedPages = this.state.pages[2];
             var record = this.state.get(20);
             expect(atOffsetResolvedPages.isRequested).to.be.true;
-            expect(record.name).to.equal('Record 20');
+            expect(record.content.name).to.equal('Record 20');
           });
 
           it('loads a single page of records after the offset', function () {
             var afterOffsetResolvedPages = this.state.pages[3];
             var record = this.state.get(30);
             expect(afterOffsetResolvedPages.isRequested).to.be.true;
-            expect(record.name).to.equal('Record 30');
+            expect(record.content.name).to.equal('Record 30');
           });
         });
 
