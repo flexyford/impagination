@@ -42,7 +42,9 @@ let dataset = new Dataset({
       });
     });
   },
-  //this function is invoked whenever a new state is generated.
+  // unfetch() function is invoked whenever a page is unloaded
+  unfetch: function(records, pageOffset) {}
+  // observe() function is invoked whenever a new state is generated.
   observe: function(nextState) {
     state = nextState;
   }
