@@ -206,22 +206,20 @@ describe("Dataset", function() {
           expect(this.state.length).to.equal(this.recordsPerPage);
         });
 
-        describe("at an incremented readOffset within the same page", function() {
+        describe("at the same readOffset", function() {
           beforeEach(function() {
             this.prevState = this.state;
-            var samePageOffset = this.recordsPerPage - 1;
-            this.dataset.setReadOffset(samePageOffset);
+            this.dataset.setReadOffset(0);
           });
           it("does not change state", function() {
-            expect(this.state).not.to.equal(this.prevState);
+            expect(this.state).to.equal(this.prevState);
           });
         });
 
-        describe("loading the next page", function() {
+        describe("at an incremented readOffset within the same page", function() {
           beforeEach(function() {
             this.prevState = this.state;
-            var nextPageOffset = this.recordsPerPage;
-            this.dataset.setReadOffset(nextPageOffset);
+            this.dataset.setReadOffset(1);
           });
           it("does change state", function() {
             expect(this.state).not.to.equal(this.prevState);
