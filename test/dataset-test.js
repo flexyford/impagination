@@ -160,6 +160,9 @@ describe("Dataset", function() {
         fetch: (pageOffset, pageSize, stats) => {
           return this.server.request(pageOffset, pageSize, stats);
         },
+        unfetch: (pageOffset)=> {
+          return this.server.remove(pageOffset);
+        },
         observe: (state) => {
           this.state = state;
         }
@@ -356,17 +359,27 @@ describe("Dataset", function() {
             expect(this.state.length).to.equal(50);
           });
 
-          it("unloads the page before the previous offset", function() {
+          it("unloads the resolved page before the previous offset", function() {
             var unrequestedPage = this.state.pages[1];
             expect(unrequestedPage.isRequested).to.be.false;
           });
 
-          it("does not unload the page before the current offset", function() {
+          it("unfetches the unloaded page", function() {
+            var unfetchedRequest = this.server.requests[1];
+            expect(unfetchedRequest).to.be.empty;
+          });
+
+          it("does not unload the page before the offset", function() {
             var loadedPage = this.state.pages[2];
             expect(loadedPage.isRequested).to.be.true;
           });
 
-          it('loads a single page of records before the offset', function () {
+          it("does not unfetch the requested page", function() {
+            var unfetchedRequest = this.server.requests[2];
+            expect(unfetchedRequest).to.not.be.empty;
+          });
+
+          it('loads a single page of records at the offset', function () {
             var beforeOffsetResolvedPages = this.state.pages[3];
             var record = this.state.get(30);
             expect(beforeOffsetResolvedPages.isRequested).to.be.true;
