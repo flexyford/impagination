@@ -37,7 +37,7 @@ describe("Dataset", function() {
       it("initializes the state", function() {
         expect(this.dataset.state).to.be.instanceOf(Object);
         expect(this.dataset.state.length).to.equal(0);
-        expect(this.dataset.state.loadHorizon).to.equal(1);
+        expect(this.dataset.state.loadHorizon).to.equal(10);
         expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
       });
 
@@ -194,7 +194,7 @@ describe("Dataset", function() {
     describe("loading records", function() {
       describe("with a single page load horizon", function() {
         beforeEach(function() {
-          this.options.loadHorizon = 1;
+          this.options.loadHorizon = 1 * this.recordsPerPage;
           this.dataset = new Dataset(this.options);
           this.dataset.setReadOffset(0);
         });
@@ -206,24 +206,22 @@ describe("Dataset", function() {
           expect(this.state.length).to.equal(this.recordsPerPage);
         });
 
-        describe("at an incremented readOffset within the same page", function() {
+        describe("at the same readOffset", function() {
           beforeEach(function() {
             this.prevState = this.state;
-            var samePageOffset = this.recordsPerPage - 1;
-            this.dataset.setReadOffset(samePageOffset);
+            this.dataset.setReadOffset(0);
           });
-          it("does change state", function() {
-            expect(this.state).not.to.equal(this.prevState);
+          it("does not change state", function() {
+            expect(this.state).to.equal(this.prevState);
           });
         });
 
-        describe("loading the next page", function() {
+        describe("at an incremented readOffset within the same page", function() {
           beforeEach(function() {
-            // TODO: What is the offset for requesting the next page?
-            var nextPageOffset = this.recordsPerPage;
-            this.dataset.setReadOffset(nextPageOffset);
+            this.prevState = this.state;
+            this.dataset.setReadOffset(1);
           });
-          it("does not change state", function() {
+          it("does change state", function() {
             expect(this.state).not.to.equal(this.prevState);
           });
           it("loads an additional page", function() {
@@ -237,7 +235,7 @@ describe("Dataset", function() {
     describe("start loading from the beginning", function() {
       describe("with a single page load horizon", function() {
         beforeEach(function() {
-          this.options.loadHorizon = 1;
+          this.options.loadHorizon = 1 * this.recordsPerPage;
           this.dataset = new Dataset(this.options);
           this.dataset.setReadOffset(0);
           return this.server.requests[0].resolve();
@@ -270,7 +268,7 @@ describe("Dataset", function() {
       describe("with a single page load horizon", function() {
         beforeEach(function() {
           var middlePageOffset = 2 * this.recordsPerPage;
-          this.options.loadHorizon = 1;
+          this.options.loadHorizon = 1 * this.recordsPerPage;
           this.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
           this.dataset.setReadOffset(this.initialReadOffset);
@@ -316,8 +314,8 @@ describe("Dataset", function() {
       describe("with a two page unload horizon", function() {
         beforeEach(function() {
           var middlePageOffset = 2 * this.recordsPerPage;
-          this.options.loadHorizon = 1;
-          this.options.unloadHorizon = 2;
+          this.options.loadHorizon = 1 * this.recordsPerPage;
+          this.options.unloadHorizon = 2 * this.recordsPerPage;
           this.initialReadOffset = middlePageOffset;
           this.dataset = new Dataset(this.options);
           this.dataset.setReadOffset(this.initialReadOffset);
@@ -349,7 +347,7 @@ describe("Dataset", function() {
 
         describe("incrementing the readOffset by the unload horizon", function() {
           beforeEach(function() {
-            var incPageOffset = this.initialReadOffset + this.options.unloadHorizon * this.recordsPerPage;
+            var incPageOffset = this.initialReadOffset + this.options.unloadHorizon;
             this.dataset.setReadOffset(incPageOffset);
             return this.server.resolveAll();
           });
@@ -462,7 +460,7 @@ describe("Dataset", function() {
 
         describe("decrementing the readOffset by the unload horizon", function() {
           beforeEach(function() {
-            var decPageOffset = this.initialReadOffset - (this.options.unloadHorizon * this.recordsPerPage);
+            var decPageOffset = this.initialReadOffset - this.options.unloadHorizon;
             this.dataset.setReadOffset(decPageOffset);
             return this.server.resolveAll();
           });
@@ -516,7 +514,7 @@ describe("Dataset", function() {
 
           describe("with a single page load horizon", function() {
             beforeEach(function() {
-              this.options.loadHorizon = 1;
+              this.options.loadHorizon = 1 * this.recordsPerPage;
               this.dataset = new Dataset(this.options);
               this.dataset.setReadOffset(this.initialReadOffset);
             });
@@ -526,7 +524,7 @@ describe("Dataset", function() {
             });
 
             it('loads unrequested pages before the load Horizon', function () {
-              var unrequestedPages = this.state.pages.slice(0, this.totalPages - this.options.loadHorizon);
+              var unrequestedPages = this.state.pages.slice(0, this.totalPages - 1);
               unrequestedPages.forEach(function (unrequestedPage) {
                 expect(unrequestedPage.isRequested).to.be.false;
               });
