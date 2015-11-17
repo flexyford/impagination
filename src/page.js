@@ -14,10 +14,12 @@ class UnrequestedPage {
   get isSettled() { return false; }
 
   get records() {
-    var records = this.data.map(function (content, index) {
-      return new Record(this, content, index);
-    }, this);
-    return records;
+    if (!this._records) {
+      this._records = this.data.map(function (content, index) {
+        return new Record(this, content, index);
+      }, this);
+    }
+    return this._records;
   }
 
   request() {
