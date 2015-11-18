@@ -17,6 +17,11 @@ describe("Dataset", function() {
       try { new Dataset({pageSize: 1}); } catch(e) { err = e; }
       expect(err).to.match(/without fetch/);
     });
+    it("cannot be instantiated with unloadHorizon less than loadHorizon", function () {
+      var err = "";
+      try { new Dataset({pageSize: 1, fetch: ()=>{}, loadHorizon: 5, unloadHorizon: 1}); } catch(e) { err = e; }
+      expect(err).to.match(/unloadHorizon less than loadHorizon/);
+    });
 
     describe("with default constructor values", function() {
       beforeEach(function() {
