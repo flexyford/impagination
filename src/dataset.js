@@ -64,6 +64,10 @@ export default class Dataset {
     this.state.pageSize = this._pageSize;
     this.state.loadHorizon = options.loadHorizon || this._pageSize;
     this.state.unloadHorizon = options.unloadHorizon || Infinity;
+
+    if (this.state.unloadHorizon < this.state.loadHorizon) {
+      throw new Error('created Dataset with unloadHorizon less than loadHorizon');
+    }
   }
 
   setReadOffset(readOffset) {
