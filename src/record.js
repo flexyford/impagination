@@ -3,6 +3,9 @@ class Record {
     this.page = page;
     this.content = content;
     this.index = index;
+    if(page.error) {
+      this.error = page.error;
+    }
   }
   get isRequested() { return this.page.isRequested; }
   get isPending() { return this.page.isPending; }
