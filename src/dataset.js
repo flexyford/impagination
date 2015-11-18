@@ -1,11 +1,13 @@
 import Page from './page';
+import Record from './record';
 
 class State {
   constructor() {
+    this.isRequested = false;
     this.isPending = false;
-    this.isResolved = true;
+    this.isResolved = false;
     this.isRejected = false;
-    this.isSettled = true;
+    this.isSettled = false;
     this.pages = [];
     this.stats = {
       totalPages: undefined
@@ -33,17 +35,14 @@ class State {
 
   get(index) {
     let pageOffset = Math.floor(index / this.pageSize);
+    let recordOffset = index % this.pageSize;
     let page = this.pages[pageOffset];
     if (page) {
-      let recordOffset = index % this.pageSize;
-      return page.records[recordOffset];
+        return page.records[recordOffset];
     } else {
-      return undefined;
+      let page = new Page();
+      return new Record(page, page.data[recordOffset], recordOffset);
     }
-  }
-
-  getPageOffset() {
-    return Math.floor(this.readOffset / this.pageSize);
   }
 }
 
@@ -69,15 +68,20 @@ export default class Dataset {
 
   setReadOffset(readOffset) {
     if (this.state.readOffset === readOffset) { return; }
+    readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
       var pages = next.pages;
 
-      var minLoadHorizon = Math.max(Math.floor((readOffset  - next.loadHorizon) / next.pageSize), 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil((readOffset  + next.loadHorizon) / next.pageSize));
+      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
+      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
+      let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
+      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
 
-      var minUnloadHorizon = Math.max(Math.floor((readOffset - next.unloadHorizon) / next.pageSize), 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize), pages.length);
+      var minLoadHorizon = Math.max(minLoadPage, 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
+      var minUnloadHorizon = Math.max(minUnloadPage, 0);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, pages.length);
 
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
@@ -102,10 +106,14 @@ export default class Dataset {
 
         if (!page.isRequested) {
           pages[i] = page.request();
-          next.isPending = true;
           this._fetchPage(pages[i]);
         }
       }
+
+      if (readOffset >= next.length) {
+        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
+      }
+      this._setStateStatus(next);
     });
     this._observe(this.state = state);
   }
@@ -151,28 +159,37 @@ export default class Dataset {
     }, 0);
   }
 
+  _setStateStatus(state) {
+    let record = state.get(state.readOffset);
+    state.isRequested = record.page.isRequested;
+    state.isPending = record.page.isPending;
+    state.isResolved = record.page.isResolved;
+    state.isRejected = record.page.isRejected;
+    state.isSettled = record.page.isSettled;
+  }
+
   _fetchPage(page) {
     let offset = page.offset;
     let pageSize = this.state.pageSize;
     let stats = {totalPages: this.state.totalPages };
     return this._fetch.call(this, offset, pageSize, stats).then((records = []) => {
       let state = this.state.update((next)=> {
-        next.isPending = false;
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.resolve(records);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
+        this._setStateStatus(next);
       });
       this._observe(this.state = state);
     }).catch((error = {}) => {
       let state = this.state.update((next)=> {
-        next.isPending = false;
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         next.pages[offset] = page.reject(error);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
+        this._setStateStatus(next);
       });
       this._observe(this.state = state);
     });
