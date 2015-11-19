@@ -7,11 +7,11 @@ class UnrequestedPage {
     this.data = new Array(size).fill(null);
   }
 
-  get isRequested() { return (this.isSettled || this.isPending); }
+  get isRequested() { return this.isPending || this.isResolved || this.isRejected; }
   get isPending() { return false; }
   get isResolved() { return false; }
   get isRejected() { return false; }
-  get isSettled() { return false; }
+  get isSettled() { return !this.isPending && (this.isResolved || this.isRejected); }
 
   get records() {
     if (!this._records) {

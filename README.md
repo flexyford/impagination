@@ -59,13 +59,7 @@ want to start reading from.
 
 ```javascript
 state.length //=> 0;
-let record = state.get(0);
-record.isRequested //=> false
-record.isPending //=> false
-record.isResolved //=> false
-record.index //=> null
-record.content //=> null
-record.page //=> { offset: null, size: 0, data: [] }
+state.get(0) //=> null;
 ```
 
 To tell where to start reading, you update the dataset's "read
@@ -88,7 +82,6 @@ record.isPending //=> true
 record.isResolved //=> false
 record.index //=> 2
 record.content //=> null
-record.page //=> { offset: 1, size: 5, data: [null*5] }
 ```
 
 ### Load Horizon

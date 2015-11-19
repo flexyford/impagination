@@ -3,11 +3,9 @@ import Record from './record';
 
 class State {
   constructor() {
-    this.isRequested = false;
     this.isPending = false;
-    this.isResolved = false;
     this.isRejected = false;
-    this.isSettled = false;
+    this.isResolved = false;
     this.pages = [];
     this.stats = {
       totalPages: undefined
@@ -15,12 +13,13 @@ class State {
     this.length = 0;
   }
 
+  get isSettled()  { return !this.isPending && (this.isRejected || this.isResolved); }
+
   update(change) {
     let next = new State();
     next.isPending = this.isPending;
     next.isResolved = this.isResolved;
     next.isRejected = this.isRejected;
-    next.isSettled = this.isSettled;
     next.length = this.length;
     next.pageSize = this.pageSize;
     next.loadHorizon = this.loadHorizon;
@@ -40,9 +39,10 @@ class State {
     if (page) {
         return page.records[recordOffset];
     } else {
-      return new Record();
+      return null;
     }
   }
+
 }
 
 export default class Dataset {
@@ -163,12 +163,15 @@ export default class Dataset {
   }
 
   _setStateStatus(state) {
-    let record = state.get(state.readOffset);
-    state.isRequested = record.page.isRequested;
-    state.isPending = record.page.isPending;
-    state.isResolved = record.page.isResolved;
-    state.isRejected = record.page.isRejected;
-    state.isSettled = record.page.isSettled;
+    state.isPending = false;
+    state.isRejected = false;
+    state.isResolved = false;
+    for(let i = 0; i<state.pages.length; i++) {
+      let page = state.pages[i];
+      state.isPending = state.isPending || page.isPending;
+      state.isRejected = state.isRejected || page.isRejected;
+      state.isResolved = !(state.isPending && state.isRejected) && page.isResolved;
+    }
   }
 
   _fetchPage(page) {
