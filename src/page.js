@@ -1,17 +1,17 @@
 import Record from './record';
 
 class UnrequestedPage {
-  constructor(offset, size) {
+  constructor(offset = null, size = 0) {
     this.offset = offset;
-    this.size = size || 0;
-    this.data = new Array(size).fill({});
+    this.size = size;
+    this.data = new Array(size).fill(null);
   }
 
-  get isRequested() { return (this.isSettled || this.isPending); }
+  get isRequested() { return this.isPending || this.isResolved || this.isRejected; }
   get isPending() { return false; }
   get isResolved() { return false; }
   get isRejected() { return false; }
-  get isSettled() { return false; }
+  get isSettled() { return !this.isPending && (this.isResolved || this.isRejected); }
 
   get records() {
     if (!this._records) {

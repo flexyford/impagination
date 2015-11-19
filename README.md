@@ -77,8 +77,10 @@ and emit a new state indicating that these records are in flight.
 ```javascript
 state.length //=> 10
 let record = state.get(7)
+record.isRequested //=> true
 record.isPending //=> true
 record.isResolved //=> false
+record.index //=> 2
 record.content //=> null
 ```
 
