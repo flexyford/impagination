@@ -1,5 +1,7 @@
+import Page from './page';
+
 class Record {
-  constructor(page, content, index) {
+  constructor(page = new Page(), content = null, index = null) {
     this.page = page;
     this.content = content;
     this.index = index;

@@ -59,7 +59,13 @@ want to start reading from.
 
 ```javascript
 state.length //=> 0;
-state.get(0) //=> null;
+let record = state.get(0);
+record.isRequested //=> false
+record.isPending //=> false
+record.isResolved //=> false
+record.index //=> null
+record.content //=> null
+record.page //=> { offset: null, size: 0, data: [] }
 ```
 
 To tell where to start reading, you update the dataset's "read
@@ -77,9 +83,12 @@ and emit a new state indicating that these records are in flight.
 ```javascript
 state.length //=> 10
 let record = state.get(7)
+record.isRequested //=> true
 record.isPending //=> true
 record.isResolved //=> false
+record.index //=> 2
 record.content //=> null
+record.page //=> { offset: 1, size: 5, data: [null*5] }
 ```
 
 ### Load Horizon

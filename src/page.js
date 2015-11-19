@@ -1,10 +1,10 @@
 import Record from './record';
 
 class UnrequestedPage {
-  constructor(offset, size) {
+  constructor(offset = null, size = 0) {
     this.offset = offset;
-    this.size = size || 0;
-    this.data = new Array(size).fill({});
+    this.size = size;
+    this.data = new Array(size).fill(null);
   }
 
   get isRequested() { return (this.isSettled || this.isPending); }

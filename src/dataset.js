@@ -40,8 +40,7 @@ class State {
     if (page) {
         return page.records[recordOffset];
     } else {
-      let page = new Page();
-      return new Record(page, page.data[recordOffset], recordOffset);
+      return new Record();
     }
   }
 }
