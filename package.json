@@ -2,8 +2,8 @@
   "name": "impagination",
   "version": "0.1.2",
   "description": "Put the fun back in asynchronous, paginated datasets",
-  "main": "./lib/index.js",
-  "jsnext:main": "./src/index.js",
+  "main": "./lib/dataset.js",
+  "jsnext:main": "./src/dataset.js",
   "scripts": {
     "prepublish": "babel --optional runtime src/ --out-dir lib/",
     "test": "mocha --reporter tap --full-trace test/index.js"
