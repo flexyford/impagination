@@ -1,10 +1,18 @@
 import Record from './record';
 
+// Array.prototype.fill
+function fill(array, value) {
+  for (let i = 0; i < array.length; i++) {
+    array[i] = value;
+  }
+  return array;
+}
+
 class UnrequestedPage {
   constructor(offset = null, size = 0) {
     this.offset = offset;
     this.size = size;
-    this.data = new Array(size).fill(null);
+    this.data = fill(new Array(size), null);
   }
 
   get isRequested() { return this.isPending || this.isResolved || this.isRejected; }
