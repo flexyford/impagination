@@ -189,7 +189,7 @@ describe("Dataset", function() {
     beforeEach(function() {
       this.recordAtPage = function(pageIndex) {
         if(pageIndex < this.state.pages.length) {
-          return this.state.get(pageIndex * this.recordsPerPage);
+          return this.state.pages[pageIndex].records[0];
         } else {
           return undefined;
         }
@@ -390,7 +390,6 @@ describe("Dataset", function() {
     describe("fetching filtered records", function() {
       beforeEach(function() {
         this.server = new Server();
-        this.totalPages = 10;
         this.options = {
           pageSize: 10,
           fetch: (pageOffset, pageSize, stats) => {
@@ -430,11 +429,29 @@ describe("Dataset", function() {
         it("transitions to a new Resolved state", function() {
           expect(this.state.isResolved).to.be.true;
         });
-        it("filters records", function () {
+        it("filters one page records", function () {
           expect(this.state.length).to.equal(5);
           var record = this.state.get(0);
           expect(record.isResolved).to.be.true;
           expect(record.content.name).to.equal("Record 1");
+        });
+      });
+      describe("incrementing the readOffset to the next page", function() {
+        beforeEach(function() {
+          this.dataset.setReadOffset(10);
+          return this.server.resolveAll();
+        });
+        it("has two resolved pages", function() {
+          var page1 = this.state.get(0);
+          expect(this.recordAtPage(0).isResolved).to.be.true;
+          expect(this.recordAtPage(1).isResolved).to.be.true;
+          expect(this.recordAtPage(2)).to.be.empty;
+        });
+        it("filters two pages of records", function () {
+          expect(this.state.length).to.equal(10);
+          var record = this.state.get(9);
+          expect(record.isResolved).to.be.true;
+          expect(record.content.name).to.equal("Record 19");
         });
       });
     });

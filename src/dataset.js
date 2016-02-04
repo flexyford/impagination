@@ -34,16 +34,34 @@ class State {
   }
 
   get(index) {
+
+    if(index > this.length) {return null};
     // Dynamically find the page offset
-    let obj = {index: index, pageOffset: Math.floor(index / this.pageSize), recordOffset: index % this.pageSize};
-    obj.pageOffset = this.pages.findIndex(function(page) {
-      this.recordOffset = this.index;
-      this.index -= page.size;
-      return this.index < 0;
-    }, obj);
-    let page = this.pages[obj.pageOffset];
+    const minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
+    const minUnloadHorizon = Math.max(minUnloadPage, 0);
+    // const maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+    // const maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
+
+    let recordOffset = index % this.pageSize;
+    let pageOffset = Math.floor(index / this.pageSize);
+
+    if(pageOffset >= minUnloadHorizon) {
+      let _this = {index: index};
+      pageOffset = this.pages.findIndex(function(page) {
+        if(this.index < page.records.length) {
+          return true;
+        } else {
+          this.index -= page.records.length;
+          return false;
+        }
+        return this.index < page.records.length;
+      }, _this);
+      recordOffset = _this.index;
+    }
+
+    let page = this.pages[pageOffset];
     if (page) {
-      return page.records[obj.recordOffset];
+      return page.records[recordOffset];
     } else {
       return null;
     }
