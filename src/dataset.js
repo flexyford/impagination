@@ -43,13 +43,7 @@ class State {
     }, obj);
     let page = this.pages[obj.pageOffset];
     if (page) {
-      if(page.isResolved){
-        return page.records.filter((record)=>{
-          return this._filter(record.content);
-        })[obj.recordOffset];
-      } else {
-        return page.records[obj.recordOffset];
-      }
+      return page.records[obj.recordOffset];
     } else {
       return null;
     }
@@ -171,7 +165,7 @@ export default class Dataset {
 
   _adjustTotalRecords(state) {
     state.length = state.pages.reduce((length, page) => {
-      return length + page.size;
+      return length + page.records.length;
     }, 0);
   }
 
@@ -195,9 +189,8 @@ export default class Dataset {
       let state = this.state.update((next)=> {
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
-        // Filter whenever we get a new page
-        let filtered = records.filter(this._filter);
-        next.pages[offset] = page.resolve(records, filtered.length);
+        // Filter on page update
+        next.pages[offset] = page.resolve(records).filter(this._filter);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
         this._setStateStatus(next);
@@ -207,6 +200,7 @@ export default class Dataset {
       let state = this.state.update((next)=> {
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
+        // Filter on page update
         next.pages[offset] = page.reject(error);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
