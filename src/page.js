@@ -45,8 +45,8 @@ class PendingPage extends UnrequestedPage {
 
   get isPending() { return true; }
 
-  resolve(records, size) {
-    return new ResolvedPage(this, records, size);
+  resolve(records) {
+    return new ResolvedPage(this, records);
   }
 
   reject(error) {

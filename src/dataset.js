@@ -27,24 +27,21 @@ class State {
     next.readOffset = this.readOffset;
     next.pages = this.pages.slice();
     next.stats.totalPages = this.stats.totalPages;
-    next._filter = this._filter;
     change.call(this, next);
     next.pages = Object.freeze(next.pages);
     return next;
   }
 
   get(index) {
+    if(index > this.length) {return null;}
+    let pageOffset = Math.floor(index / this.pageSize);
+    let recordOffset = index % this.pageSize;
 
-    if(index > this.length) {return null};
     // Dynamically find the page offset
     const minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
     const minUnloadHorizon = Math.max(minUnloadPage, 0);
     // const maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
     // const maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
-
-    let recordOffset = index % this.pageSize;
-    let pageOffset = Math.floor(index / this.pageSize);
-
     if(pageOffset >= minUnloadHorizon) {
       let _this = {index: index};
       pageOffset = this.pages.findIndex(function(page) {
@@ -87,7 +84,6 @@ export default class Dataset {
     this.state.pageSize = Number(this._pageSize);
     this.state.loadHorizon = Number(options.loadHorizon || this._pageSize);
     this.state.unloadHorizon = Number(options.unloadHorizon) || Infinity;
-    this.state._filter = this._filter;
 
     if (this.state.unloadHorizon < this.state.loadHorizon) {
       throw new Error('created Dataset with unloadHorizon less than loadHorizon');
@@ -218,7 +214,6 @@ export default class Dataset {
       let state = this.state.update((next)=> {
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
-        // Filter on page update
         next.pages[offset] = page.reject(error);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
