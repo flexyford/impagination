@@ -38,8 +38,8 @@ class PendingPage extends UnrequestedPage {
 
   get isPending() { return true; }
 
-  resolve(records) {
-    return new ResolvedPage(this, records);
+  resolve(records, size) {
+    return new ResolvedPage(this, records, size);
   }
 
   reject(error) {
@@ -56,9 +56,10 @@ class PendingPage extends UnrequestedPage {
 }
 
 class ResolvedPage extends PendingPage {
-  constructor(pending, data) {
+  constructor(pending, data, size) {
     super(pending);
     this.data = data;
+    this.size = size;
   }
   get isPending() { return false; }
   get isResolved() { return true; }

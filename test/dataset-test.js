@@ -387,6 +387,59 @@ describe("Dataset", function() {
       });
     });
 
+    describe("fetching filtered records", function() {
+      beforeEach(function() {
+        this.server = new Server();
+        this.totalPages = 10;
+        this.options = {
+          pageSize: 10,
+          fetch: (pageOffset, pageSize, stats) => {
+            return this.server.request(pageOffset, pageSize, stats);
+          },
+          filter: (record) => {
+            // Filter only Odd Indexed Records
+            return record && (parseInt(record.name.substr(7)) % 2);
+          },
+          observe: (state) => {
+            this.state = state;
+          }
+        };
+        this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(0);
+      });
+
+      it("fetches a page of records", function() {
+        expect(this.server.requests.length).to.equal(1);
+        expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+        expect(this.dataset.state.length).to.equal(10);
+      });
+      it("returns a pending state", function() {
+        expect(this.dataset.state.isPending).to.be.true;
+      });
+      it("fetches a set of empty Pending records", function() {
+        let record = this.dataset.state.get(0);
+        expect(record.index).to.equal(0);
+        expect(record.isPending).to.be.true;
+        expect(record.content).to.equal(null);
+        expect(record.page.offset).to.equal(0);
+      });
+      describe("resolving all fetch request", function() {
+        beforeEach(function() {
+          return this.server.resolveAll();
+        });
+        it("transitions to a new Resolved state", function() {
+          expect(this.state.isResolved).to.be.true;
+        });
+        it("filters records", function () {
+          expect(this.state.length).to.equal(5);
+          var record = this.state.get(0);
+          expect(record.isResolved).to.be.true;
+          expect(record.content.name).to.equal("Record 1");
+        });
+      });
+    });
+
+
     describe("Statistics ", function() {
       beforeEach(function() {
         this.server = new Server();

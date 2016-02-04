@@ -27,22 +27,33 @@ class State {
     next.readOffset = this.readOffset;
     next.pages = this.pages.slice();
     next.stats.totalPages = this.stats.totalPages;
+    next._filter = this._filter;
     change.call(this, next);
     next.pages = Object.freeze(next.pages);
     return next;
   }
 
   get(index) {
-    let pageOffset = Math.floor(index / this.pageSize);
-    let recordOffset = index % this.pageSize;
-    let page = this.pages[pageOffset];
+    // Dynamically find the page offset
+    let obj = {index: index, pageOffset: Math.floor(index / this.pageSize), recordOffset: index % this.pageSize};
+    obj.pageOffset = this.pages.findIndex(function(page) {
+      this.recordOffset = this.index;
+      this.index -= page.size;
+      return this.index < 0;
+    }, obj);
+    let page = this.pages[obj.pageOffset];
     if (page) {
-        return page.records[recordOffset];
+      if(page.isResolved){
+        return page.records.filter((record)=>{
+          return this._filter(record.content);
+        })[obj.recordOffset];
+      } else {
+        return page.records[obj.recordOffset];
+      }
     } else {
       return null;
     }
   }
-
 }
 
 export default class Dataset {
@@ -59,10 +70,12 @@ export default class Dataset {
     this._fetch = options.fetch;
     this._unfetch = options.unfetch || function() {};
     this._observe = options.observe || function() {};
+    this._filter = options.filter || function() {return true;};
     this.state = new State();
     this.state.pageSize = Number(this._pageSize);
     this.state.loadHorizon = Number(options.loadHorizon || this._pageSize);
     this.state.unloadHorizon = Number(options.unloadHorizon) || Infinity;
+    this.state._filter = this._filter;
 
     if (this.state.unloadHorizon < this.state.loadHorizon) {
       throw new Error('created Dataset with unloadHorizon less than loadHorizon');
@@ -157,8 +170,8 @@ export default class Dataset {
   }
 
   _adjustTotalRecords(state) {
-    state.length = state.pages.reduce(function(length, page) {
-      return length + page.data.length;
+    state.length = state.pages.reduce((length, page) => {
+      return length + page.size;
     }, 0);
   }
 
@@ -182,7 +195,9 @@ export default class Dataset {
       let state = this.state.update((next)=> {
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
-        next.pages[offset] = page.resolve(records);
+        // Filter whenever we get a new page
+        let filtered = records.filter(this._filter);
+        next.pages[offset] = page.resolve(records, filtered.length);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
         this._setStateStatus(next);
