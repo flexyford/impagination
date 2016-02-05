@@ -71,11 +71,7 @@ class State {
     }
 
     const page = this.pages[offset.pageIndex];
-    if (page) {
-      return page.records[offset.recordIndex];
-    } else {
-      return null;
-    }
+    return page && page.records[offset.recordIndex] || null;
   }
 }
 
