@@ -433,41 +433,87 @@ describe("Dataset", function() {
         });
         it("filters records on the first page", function () {
           expect(this.state.length).to.equal(45);
-          var record = this.state.get(0);
+          const record = this.state.get(0);
           expect(record.isResolved).to.be.true;
           expect(record.content.name).to.equal("Record 1");
         });
-      });
-      describe("incrementing the readOffset ahead two pages", function() {
-        beforeEach(function() {
-          this.dataset.setReadOffset(20);
-          return this.server.resolveAll();
-        });
-        it("has two resolved pages", function() {
-          expect(this.recordAtPage(0).isResolved).to.be.false;
-          expect(this.recordAtPage(1).isResolved).to.be.true;
-          expect(this.recordAtPage(2).isResolved).to.be.true;
-          expect(this.recordAtPage(3).isResolved).to.be.false;
-          expect(this.recordAtPage(4).isResolved).to.be.false;
-          expect(this.recordAtPage(5)).to.be.empty;
-        });
-        it("filters two pages of records", function () {
-          const pageSize = 10;
-          const filteredRecordPerPage = 5;
-          const unfilteredLength = this.state.pages.length * pageSize;
-          const filteredLength = unfilteredLength - (2 * filteredRecordPerPage);
-          expect(this.state.length).to.equal(filteredLength);
+        describe("incrementing the readOffset ahead two pages", function() {
+          beforeEach(function() {
+            this.dataset.setReadOffset(20);
+            return this.server.resolveAll();
+          });
+          it("has two resolved pages", function() {
+            expect(this.recordAtPage(0).isResolved).to.be.false;
+            expect(this.recordAtPage(1).isResolved).to.be.true;
+            expect(this.recordAtPage(2).isResolved).to.be.true;
+            expect(this.recordAtPage(3).isResolved).to.be.false;
+            expect(this.recordAtPage(4).isResolved).to.be.false;
+            expect(this.recordAtPage(5)).to.be.empty;
+          });
+          it("filters two pages of records", function () {
+            const pageSize = 10;
+            const filteredRecordPerPage = 5;
+            const unfilteredLength = this.state.pages.length * pageSize;
+            const filteredLength = unfilteredLength - (2 * filteredRecordPerPage);
+            expect(this.state.length).to.equal(filteredLength);
 
+          });
+          it("filters records on the second and third page", function () {
+            expect(this.recordAtPage(1).content.name).to.equal("Record 11");
+            expect(this.recordAtPage(2).content.name).to.equal("Record 21");
+            const record = this.state.get(18);
+            expect(record.content.name).to.equal("Record 27");
+            const outOfBoundsRecord = this.state.get(40);
+            expect(outOfBoundsRecord).to.equal(null);
+          });
         });
-        it("filters records on the second and third page", function () {
-          expect(this.recordAtPage(1).content.name).to.equal("Record 11");
-          expect(this.recordAtPage(2).content.name).to.equal("Record 21");
-          const record = this.state.get(18);
-          expect(record.content.name).to.equal("Record 27");
-          const outOfBoundsRecord = this.state.get(40);
-          expect(outOfBoundsRecord).to.equal(null);
+        describe("mutating records", function() {
+          beforeEach(function() {
+            let record = this.state.get(0);
+            record.content.name = "Record 100";
+          });
+
+          describe("without refreshing the dataset", function() {
+            it("mutates the record", function() {
+              const record = this.state.get(0);
+              expect(record.content.name).to.equal("Record 100");
+            });
+            it("does not filter out the record", function () {
+              expect(this.state.length).to.equal(45);
+            });
+          });
+
+          describe("with refreshing the dataset", function() {
+            beforeEach(function() {
+              this.dataset.refresh();
+            });
+
+            it("filters out the record", function () {
+              expect(this.state.length).to.equal(44);
+            });
+
+            it("find a new record", function() {
+              const record = this.state.get(0);
+              expect(record.content.name).to.equal("Record 3");
+            });
+          });
+          describe("with resetting the dataset", function() {
+            beforeEach(function() {
+              return this.dataset.reset();
+            });
+
+            it("resets the state", function () {
+              expect(this.dataset.state.length).to.equal(10);
+            });
+
+            it("loses the mutated record", function () {
+              const record = this.state.get(0);
+              expect(record.content).to.be.equal(null);
+            });
+          });
         });
       });
+
     });
 
 

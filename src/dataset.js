@@ -100,12 +100,22 @@ export default class Dataset {
     }
   }
 
-  setReadOffset(readOffset) {
-    if (this.state.readOffset === readOffset) { return; }
+
+  setReadOffset(readOffset, options = {}) {
+    if (options.refresh && options.reset) {
+      throw new Error('cannot reset and refresh dataset');
+    } else if (!options.refresh && !options.reset) {
+      if (this.state.readOffset === readOffset) { return; }
+    }
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
-      var pages = next.pages;
+
+      if(options.reset) {
+        next.pages = [];
+      }
+
+      let pages  = next.pages;
 
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
@@ -130,13 +140,16 @@ export default class Dataset {
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
       for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
         this._touchPage(pages, i);
+        if(options.refresh){
+          this._filterPage(pages, i);
+        }
       }
 
       this._adjustTotalRecords(next);
 
       // Request and Fetch Records within the `loadHorizons`
       for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-        let page = this._touchPage(pages, i);
+        let page = pages[i];
 
         if (!page.isRequested) {
           pages[i] = page.request();
@@ -150,6 +163,16 @@ export default class Dataset {
       this._setStateStatus(next);
     });
     this._observe(this.state = state);
+  }
+
+  refresh(readOffset){
+    readOffset = (readOffset >= 0) ? readOffset : this.state.readOffset;
+    this.setReadOffset(readOffset, {refresh: true});
+  }
+
+  reset(readOffset){
+    readOffset = (readOffset >= 0) ? readOffset : 0;
+    this.setReadOffset(readOffset, {reset: true});
   }
 
   /* Unloads a page at the given index and returns the unloaded page */
@@ -174,6 +197,17 @@ export default class Dataset {
     return page;
   }
 
+  /* applies the filter to the resolvedPage at the given index
+   * Returns the page at the given index */
+  _filterPage(pages, i) {
+    let page = pages[i];
+    if(page && page.isResolved) {
+      page = page.resolve(page.unfilteredData, page.filterCallback);
+      pages.splice(i, 1, page);
+    }
+    return page;
+  }
+
   _adjustTotalPages(pages, stats) {
     if(stats.totalPages > pages.length) {
       // touch pages
@@ -184,7 +218,6 @@ export default class Dataset {
       // remove pages
       pages.splice(stats.totalPages, pages.length);
     }
-
   }
 
   _adjustTotalRecords(state) {

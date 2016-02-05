@@ -65,11 +65,6 @@ class ResolvedPage extends PendingPage {
   get isPending() { return false; }
   get isResolved() { return true; }
   get isSettled() { return true; }
-
-  // Redundant, since we can call resolvedPage.resolve(resolvedPage.unfilteredRecords, resolvedPage.filterCallback) to reapply filters
-  filter(){
-    return new ResolvedPage(this, this.unfilteredData, this.filterCallback);
-  }
 }
 
 class RejectedPage extends PendingPage {
