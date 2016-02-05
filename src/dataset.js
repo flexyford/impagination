@@ -111,10 +111,6 @@ export default class Dataset {
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
 
-      if(options.reset) {
-        next.pages = [];
-      }
-
       let pages  = next.pages;
 
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
@@ -139,9 +135,12 @@ export default class Dataset {
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
       for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        this._touchPage(pages, i);
         if(options.refresh){
           this._filterPage(pages, i);
+        } else if(options.reset) {
+          this._unloadPage(pages, i);
+        } else {
+          this._touchPage(pages, i);
         }
       }
 
@@ -197,10 +196,9 @@ export default class Dataset {
     return page;
   }
 
-  /* applies the filter to the resolvedPage at the given index
-   * Returns the page at the given index */
+  /* Filters a page at the given index and returns the resolved page */
   _filterPage(pages, i) {
-    let page = pages[i];
+    let page = this._touchPage(pages, i);
     if(page && page.isResolved) {
       page = page.resolve(page.unfilteredData, page.filterCallback);
       pages.splice(i, 1, page);

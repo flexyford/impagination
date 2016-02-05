@@ -503,7 +503,11 @@ describe("Dataset", function() {
             });
 
             it("resets the state", function () {
-              expect(this.dataset.state.length).to.equal(10);
+              expect(this.state.isPending).to.be.true;
+            });
+
+            it("maintains the total number of records", function () {
+              expect(this.state.length).to.equal(50);
             });
 
             it("loses the mutated record", function () {
