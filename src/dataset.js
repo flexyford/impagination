@@ -214,7 +214,7 @@ export default class Dataset {
         next.stats = stats;
         if(page !== next.pages[offset]) { return; }
         // Filter on page update
-        next.pages[offset] = page.resolve(records).filter(this._filter);
+        next.pages[offset] = page.resolve(records, this._filter);
         this._adjustTotalPages(next.pages, stats);
         this._adjustTotalRecords(next);
         this._setStateStatus(next);

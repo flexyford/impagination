@@ -13,18 +13,11 @@ class UnrequestedPage {
   get isRejected() { return false; }
   get isSettled() { return !this.isPending && (this.isResolved || this.isRejected); }
 
-  get unfilteredRecords() {
-    if (!this._unfilteredRecords) {
-      this._unfilteredRecords = this.data.map(function (content, index) {
-        return new Record(this, content, index);
-      }, this);
-    }
-    return this._unfilteredRecords;
-  }
-
   get records(){
     if (!this._records) {
-      this._records = this.unfilteredRecords;
+      this._records = this.data.map(function (content, index) {
+        return new Record(this, content, index);
+      }, this);
     }
     return this._records;
   }
@@ -45,8 +38,8 @@ class PendingPage extends UnrequestedPage {
 
   get isPending() { return true; }
 
-  resolve(records) {
-    return new ResolvedPage(this, records);
+  resolve(records, filterCallback) {
+    return new ResolvedPage(this, records, filterCallback);
   }
 
   reject(error) {
@@ -63,19 +56,19 @@ class PendingPage extends UnrequestedPage {
 }
 
 class ResolvedPage extends PendingPage {
-  constructor(pending, data) {
+  constructor(pending, data, filterCallback) {
     super(pending);
-    this.data = data;
+    this.unfilteredData = data;
+    this.filterCallback = filterCallback || function() {return true;};
+    this.data = this.unfilteredData.filter(this.filterCallback);
   }
   get isPending() { return false; }
   get isResolved() { return true; }
   get isSettled() { return true; }
 
-  filter(filterCallback){
-    this._records = this.data.filter(filterCallback).map(function (content, index) {
-      return new Record(this, content, index);
-    }, this);
-    return this;
+  // Redundant, since we can call resolvedPage.resolve(resolvedPage.unfilteredRecords, resolvedPage.filterCallback) to reapply filters
+  filter(){
+    return new ResolvedPage(this, this.unfilteredData, this.filterCallback);
   }
 }
 
