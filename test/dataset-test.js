@@ -392,7 +392,9 @@ describe("Dataset", function() {
         this.server = new Server();
         this.options = {
           pageSize: 10,
+          unloadHorizon: 10,
           fetch: (pageOffset, pageSize, stats) => {
+            stats.totalPages = 5;
             return this.server.request(pageOffset, pageSize, stats);
           },
           filter: (record) => {
@@ -426,32 +428,44 @@ describe("Dataset", function() {
         beforeEach(function() {
           return this.server.resolveAll();
         });
-        it("transitions to a new Resolved state", function() {
-          expect(this.state.isResolved).to.be.true;
+        it("sets total pages", function() {
+          expect(this.state.stats.totalPages).to.equal(5);
         });
-        it("filters one page records", function () {
-          expect(this.state.length).to.equal(5);
+        it("filters records on the first page", function () {
+          expect(this.state.length).to.equal(45);
           var record = this.state.get(0);
           expect(record.isResolved).to.be.true;
           expect(record.content.name).to.equal("Record 1");
         });
       });
-      describe("incrementing the readOffset to the next page", function() {
+      describe("incrementing the readOffset ahead two pages", function() {
         beforeEach(function() {
-          this.dataset.setReadOffset(10);
+          this.dataset.setReadOffset(20);
           return this.server.resolveAll();
         });
         it("has two resolved pages", function() {
-          var page1 = this.state.get(0);
-          expect(this.recordAtPage(0).isResolved).to.be.true;
+          expect(this.recordAtPage(0).isResolved).to.be.false;
           expect(this.recordAtPage(1).isResolved).to.be.true;
-          expect(this.recordAtPage(2)).to.be.empty;
+          expect(this.recordAtPage(2).isResolved).to.be.true;
+          expect(this.recordAtPage(3).isResolved).to.be.false;
+          expect(this.recordAtPage(4).isResolved).to.be.false;
+          expect(this.recordAtPage(5)).to.be.empty;
         });
         it("filters two pages of records", function () {
-          expect(this.state.length).to.equal(10);
-          var record = this.state.get(9);
-          expect(record.isResolved).to.be.true;
-          expect(record.content.name).to.equal("Record 19");
+          const pageSize = 10;
+          const filteredRecordPerPage = 5;
+          const unfilteredLength = this.state.pages.length * pageSize;
+          const filteredLength = unfilteredLength - (2 * filteredRecordPerPage);
+          expect(this.state.length).to.equal(filteredLength);
+
+        });
+        it("filters records on the second and third page", function () {
+          expect(this.recordAtPage(1).content.name).to.equal("Record 11");
+          expect(this.recordAtPage(2).content.name).to.equal("Record 21");
+          const record = this.state.get(18);
+          expect(record.content.name).to.equal("Record 27");
+          const outOfBoundsRecord = this.state.get(40);
+          expect(outOfBoundsRecord).to.equal(null);
         });
       });
     });

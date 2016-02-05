@@ -33,32 +33,46 @@ class State {
   }
 
   get(index) {
-    if(index > this.length) {return null;}
-    let pageOffset = Math.floor(index / this.pageSize);
-    let recordOffset = index % this.pageSize;
+    if(index >= this.length) {return null;}
+
+    let offset = {
+      // Compute Record and Page Offsets without page filtering
+      pageIndex: Math.floor(index / this.pageSize),
+      recordIndex: index % this.pageSize
+    };
 
     // Dynamically find the page offset
     const minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
     const minUnloadHorizon = Math.max(minUnloadPage, 0);
-    // const maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
-    // const maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
-    if(pageOffset >= minUnloadHorizon) {
-      let _this = {index: index};
-      pageOffset = this.pages.findIndex(function(page) {
-        if(this.index < page.records.length) {
+
+    if(offset.pageIndex >= minUnloadHorizon) {
+      // Compute Record Offset with page filtering
+      const maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+      const maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
+      const maxUnloadIndex = index - (minUnloadHorizon * this.pageSize);
+      offset.recordIndex = maxUnloadIndex;
+
+      const minUnloadPageOffset = this.pages.slice(minUnloadHorizon, maxUnloadHorizon).findIndex(function(page) {
+        if(this.recordIndex < page.records.length) {
           return true;
         } else {
-          this.index -= page.records.length;
+          this.recordIndex -= page.records.length;
           return false;
         }
-        return this.index < page.records.length;
-      }, _this);
-      recordOffset = _this.index;
+        return this.recordIndex < page.records.length;
+      }, offset);
+
+      if(minUnloadPageOffset < 0 ){
+        // page not found in Unload Horizons
+        offset.pageIndex = Math.floor(offset.recordIndex / this.pageSize) + maxUnloadHorizon;
+      } else {
+        offset.pageIndex = minUnloadPageOffset + minUnloadHorizon;
+      }
     }
 
-    let page = this.pages[pageOffset];
+    const page = this.pages[offset.pageIndex];
     if (page) {
-      return page.records[recordOffset];
+      return page.records[offset.recordIndex];
     } else {
       return null;
     }
