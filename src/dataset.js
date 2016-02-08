@@ -102,11 +102,11 @@ export default class Dataset {
 
 
   setReadOffset(readOffset, options = {}) {
-    if ((options.refresh && options.reload) ||
-        (options.refresh && options.reset)  ||
+    if ((options.refilter && options.reload) ||
+        (options.refilter && options.reset)  ||
         (options.reload  && options.reset)) {
-      throw new Error('Error: set read offset with multiple options enabled: Only apply a signle option of refresh, reset, or reload');
-    } else if (!options.refresh && !options.reload && !options.reset) {
+      throw new Error('Error: set read offset with multiple options enabled: Only apply a signle option of refilter, reset, or reload');
+    } else if (!options.refilter && !options.reload && !options.reset) {
       if (this.state.readOffset === readOffset) { return; }
     }
     readOffset = (readOffset >= 0) ? readOffset : 0;
@@ -137,7 +137,7 @@ export default class Dataset {
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
       for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        if(options.refresh){
+        if(options.refilter){
           this._filterPage(pages, i);
         } else if(options.reload) {
           this._unloadPage(pages, i);
@@ -166,9 +166,9 @@ export default class Dataset {
     this._observe(this.state = state);
   }
 
-  refresh(readOffset){
+  refilter(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : this.state.readOffset;
-    this.setReadOffset(readOffset, {refresh: true});
+    this.setReadOffset(readOffset, {refilter: true});
   }
 
   reload(readOffset){

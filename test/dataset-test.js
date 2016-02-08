@@ -473,7 +473,7 @@ describe("Dataset", function() {
             record.content.name = "Record 100";
           });
 
-          describe("without refreshing the dataset", function() {
+          describe("without refiltering the dataset", function() {
             it("mutates the record", function() {
               const record = this.state.get(0);
               expect(record.content.name).to.equal("Record 100");
@@ -483,9 +483,9 @@ describe("Dataset", function() {
             });
           });
 
-          describe("with refreshing the dataset", function() {
+          describe("with refiltering the dataset", function() {
             beforeEach(function() {
-              this.dataset.refresh();
+              this.dataset.refilter();
             });
 
             it("filters out the record", function () {
