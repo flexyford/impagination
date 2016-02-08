@@ -497,6 +497,24 @@ describe("Dataset", function() {
               expect(record.content.name).to.equal("Record 3");
             });
           });
+          describe("with reloading the dataset", function() {
+            beforeEach(function() {
+              return this.dataset.reload();
+            });
+
+            it("reloads the state", function () {
+              expect(this.state.isPending).to.be.true;
+            });
+
+            it("maintains the total number of records", function () {
+              expect(this.state.length).to.equal(50);
+            });
+
+            it("loses the mutated record", function () {
+              const record = this.state.get(0);
+              expect(record.content).to.be.equal(null);
+            });
+          });
           describe("with resetting the dataset", function() {
             beforeEach(function() {
               return this.dataset.reset();
@@ -506,8 +524,8 @@ describe("Dataset", function() {
               expect(this.state.isPending).to.be.true;
             });
 
-            it("maintains the total number of records", function () {
-              expect(this.state.length).to.equal(50);
+            it("resets the total number of records", function () {
+              expect(this.state.length).to.equal(10);
             });
 
             it("loses the mutated record", function () {
