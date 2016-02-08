@@ -196,10 +196,12 @@ export default class Dataset {
     return page;
   }
 
-  /* Filters a page at the given index and returns the resolved page */
+  /* Returns the page at the given index
+   * If the page is a resolved page, it reruns the filters
+   * and returns a new ResolvedPage instance */
   _filterPage(pages, i) {
     let page = this._touchPage(pages, i);
-    if(page && page.isResolved) {
+    if(page.isResolved) {
       page = page.resolve(page.unfilteredData, page.filterCallback);
       pages.splice(i, 1, page);
     }
@@ -220,7 +222,7 @@ export default class Dataset {
 
   _adjustTotalRecords(state) {
     state.length = state.pages.reduce((length, page) => {
-      return length + page.records.length;
+      return length + page.data.length;
     }, 0);
   }
 
