@@ -100,21 +100,18 @@ export default class Dataset {
     }
   }
 
-
   setReadOffset(readOffset, options = {}) {
-    if ((options.refilter && options.reload) ||
-        (options.refilter && options.reset)  ||
-        (options.reload  && options.reset)) {
-      throw new Error('Error: set read offset with multiple options enabled: Only apply a signle option of refilter, reset, or reload');
-    } else if (!options.refilter && !options.reload && !options.reset) {
-      if (this.state.readOffset === readOffset) { return; }
+    this._validateOptions(options);
+    this._initPageByOption = this._initPage(options);
+    if (this.state.readOffset === readOffset && !Object.keys(options).length) {
+      return;
     }
+
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
-      next.pages = (options.reset) ? [] : next.pages;
 
-      let pages  = next.pages;
+      let pages  = next.pages = (options.reset) ? [] : next.pages;
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
       let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
@@ -133,17 +130,11 @@ export default class Dataset {
         this._unloadPage(pages, i);
       }
 
-      // Initialize Unfetched Pages between current Horizons
+      // Initialize Pages between current Horizons
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
       for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        if(options.refilter){
-          this._filterPage(pages, i);
-        } else if(options.reload) {
-          this._unloadPage(pages, i);
-        } else {
-          this._touchPage(pages, i);
-        }
+        this._initPageByOption.call(this, pages, i);
       }
 
       this._adjustTotalRecords(next);
@@ -179,6 +170,26 @@ export default class Dataset {
   reset(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : 0;
     this.setReadOffset(readOffset, {reset: true});
+  }
+
+  _validateOptions(options){
+    // A maximum of 1 option may be enabled at any given time
+    if ((options.refilter && options.reload) ||
+        (options.refilter && options.reset)  ||
+        (options.reload  && options.reset)) {
+      throw new Error('Error: set read offset with multiple options enabled: Only apply a signle option of refilter, reset, or reload');
+    }
+  }
+
+  // Returns a function to be called on each page within the unloadHorizon
+  _initPage(options){
+    if(options.refilter){
+      return this._filterPage;
+    } else if(options.reload) {
+      return this._unloadPage;
+    } else {
+      return this._touchPage;
+    }
   }
 
   /* Unloads a page at the given index and returns the unloaded page */
