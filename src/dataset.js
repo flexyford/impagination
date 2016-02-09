@@ -75,6 +75,10 @@ class State {
   }
 }
 
+function isEmpty(hash){
+  return Object.keys(hash).length === 0;
+}
+
 export default class Dataset {
 
   constructor(options = {}) {
@@ -101,17 +105,15 @@ export default class Dataset {
   }
 
   setReadOffset(readOffset, options = {}) {
+    if (this.state.readOffset === readOffset && isEmpty(options)) {return;}
     this._validateOptions(options);
     this._initPageByOption = this._initPage(options);
-    if (this.state.readOffset === readOffset && !Object.keys(options).length) {
-      return;
-    }
 
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
+      next.pages = (!options.reset) ? next.pages : [];
 
-      let pages  = next.pages = (options.reset) ? [] : next.pages;
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
       let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
@@ -120,8 +122,9 @@ export default class Dataset {
       var minLoadHorizon = Math.max(minLoadPage, 0);
       var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
       var minUnloadHorizon = Math.max(minUnloadPage, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, pages.length);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
 
+      let pages  = next.pages;
       // Unload Pages outside the `unloadHorizons`
       for (i = 0; i < minUnloadHorizon; i += 1) {
         this._unloadPage(pages, i);
