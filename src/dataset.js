@@ -104,15 +104,13 @@ export default class Dataset {
     }
   }
 
-  setReadOffset(readOffset, options = {}) {
-    if (this.state.readOffset === readOffset && isEmpty(options)) {return;}
-    this._validateOptions(options);
-    this._initPageByOption = this._initPage(options);
+  setReadOffset(readOffset) {
+    if (this.state.readOffset === readOffset) {return;}
 
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
-      next.pages = (!options.reset) ? next.pages : [];
+      let pages  = next.pages;
 
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
@@ -124,9 +122,8 @@ export default class Dataset {
       var minUnloadHorizon = Math.max(minUnloadPage, 0);
       var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
 
-      let pages  = next.pages;
       // Unload Pages outside the `unloadHorizons`
-      for (i = 0; i < minUnloadHorizon; i += 1) {
+      for (var i = 0; i < minUnloadHorizon; i += 1) {
         this._unloadPage(pages, i);
       }
       for (i = maxUnloadHorizon; i < pages.length; i += 1) {
@@ -136,8 +133,8 @@ export default class Dataset {
       // Initialize Pages between current Horizons
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
-      for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        this._initPageByOption.call(this, pages, i);
+      for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
+        this._touchPage(pages, i);
       }
 
       this._adjustTotalRecords(next);
@@ -160,39 +157,110 @@ export default class Dataset {
     this._observe(this.state = state);
   }
 
-  refilter(readOffset){
-    readOffset = (readOffset >= 0) ? readOffset : this.state.readOffset;
-    this.setReadOffset(readOffset, {refilter: true});
+  refilter(){
+    let readOffset = this.state.readOffset;
+    let state = this.state.update((next)=> {
+      next.readOffset = readOffset;
+      let pages  = next.pages;
+
+      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
+      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
+      let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
+      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
+
+      var minLoadHorizon = Math.max(minLoadPage, 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
+      var minUnloadHorizon = Math.max(minUnloadPage, 0);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
+
+      // Unload Pages outside the `unloadHorizons`
+      for (var i = 0; i < minUnloadHorizon; i += 1) {
+        this._unloadPage(pages, i);
+      }
+      for (i = maxUnloadHorizon; i < pages.length; i += 1) {
+        this._unloadPage(pages, i);
+      }
+
+      // Initialize Pages between current Horizons
+      let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
+      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
+      for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
+        this._filterPage(pages, i);
+      }
+
+      this._adjustTotalRecords(next);
+      this._setStateStatus(next);
+    });
+    this._observe(this.state = state);
   }
 
   reload(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : 0;
-    this.setReadOffset(readOffset, {reload: true});
+    let state = this.state.update((next)=> {
+      next.readOffset = readOffset;
+      let pages  = next.pages;
+
+      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
+      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
+
+      let minLoadHorizon = Math.max(minLoadPage, 0);
+      let maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
+
+      // Unload Pages outside the `unloadHorizons`
+      for (var i = 0; i < pages.length; i += 1) {
+        this._unloadPage(pages, i);
+      }
+
+      this._adjustTotalRecords(next);
+
+      // Request and Fetch Records within the `loadHorizons`
+      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
+        pages[i] = pages[i].request();
+        this._fetchPage(pages[i]);
+      }
+
+      if (readOffset >= next.length) {
+        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
+      }
+      this._setStateStatus(next);
+    });
+    this._observe(this.state = state);
   }
 
   reset(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : 0;
-    this.setReadOffset(readOffset, {reset: true});
-  }
+    let state = this.state.update((next)=> {
+      next.readOffset = readOffset;
+      let pages  = next.pages = [];
 
-  _validateOptions(options){
-    // A maximum of 1 option may be enabled at any given time
-    if ((options.refilter && options.reload) ||
-        (options.refilter && options.reset)  ||
-        (options.reload  && options.reset)) {
-      throw new Error('Error: set read offset with multiple options enabled: Only apply a signle option of refilter, reset, or reload');
-    }
-  }
+      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
+      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
+      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
 
-  // Returns a function to be called on each page within the unloadHorizon
-  _initPage(options){
-    if(options.refilter){
-      return this._filterPage;
-    } else if(options.reload) {
-      return this._unloadPage;
-    } else {
-      return this._touchPage;
-    }
+      var minLoadHorizon = Math.max(minLoadPage, 0);
+      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
+      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
+
+      // Initialize Pages up to Max Horizon
+      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
+      for (var i = 0; i < currentMaxHorizon; i += 1) {
+        this._touchPage(pages, i);
+      }
+
+      this._adjustTotalRecords(next);
+
+      // Request and Fetch Records within the `loadHorizons`
+      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
+        pages[i] = pages[i].request();
+        this._fetchPage(pages[i]);
+      }
+
+      if (readOffset >= next.length) {
+        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
+      }
+      this._setStateStatus(next);
+    });
+    this._observe(this.state = state);
   }
 
   /* Unloads a page at the given index and returns the unloaded page */
