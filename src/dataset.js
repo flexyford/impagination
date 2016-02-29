@@ -105,8 +105,7 @@ export default class Dataset {
   }
 
   setReadOffset(readOffset) {
-    if (this.state.readOffset === readOffset) {return;}
-
+    if (this.state.readOffset === readOffset) { return; }
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
@@ -130,7 +129,7 @@ export default class Dataset {
         this._unloadPage(pages, i);
       }
 
-      // Initialize Pages between current Horizons
+      // Initialize Unfetched Pages between current Horizons
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
       for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
@@ -157,6 +156,7 @@ export default class Dataset {
     this._observe(this.state = state);
   }
 
+  // Applies the filter to all possible Resolved Pages
   refilter(){
     let readOffset = this.state.readOffset;
     let state = this.state.update((next)=> {
@@ -173,27 +173,21 @@ export default class Dataset {
       var minUnloadHorizon = Math.max(minUnloadPage, 0);
       var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
 
-      // Unload Pages outside the `unloadHorizons`
-      for (var i = 0; i < minUnloadHorizon; i += 1) {
-        this._unloadPage(pages, i);
-      }
-      for (i = maxUnloadHorizon; i < pages.length; i += 1) {
-        this._unloadPage(pages, i);
-      }
-
-      // Initialize Pages between current Horizons
+      // Filter Pages between current Horizons
       let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
       let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
-      for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
+      for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
         this._filterPage(pages, i);
       }
 
+      // Update the total number of records after applying filters
       this._adjustTotalRecords(next);
-      this._setStateStatus(next);
     });
     this._observe(this.state = state);
   }
 
+  // Unload all pages, and refetch from the readOffset (default: 0)
+  // Reload does `unfetch` all unloaded pages
   reload(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
@@ -202,7 +196,6 @@ export default class Dataset {
 
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
-
       let minLoadHorizon = Math.max(minLoadPage, 0);
       let maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
 
@@ -210,7 +203,6 @@ export default class Dataset {
       for (var i = 0; i < pages.length; i += 1) {
         this._unloadPage(pages, i);
       }
-
       this._adjustTotalRecords(next);
 
       // Request and Fetch Records within the `loadHorizons`
@@ -227,6 +219,8 @@ export default class Dataset {
     this._observe(this.state = state);
   }
 
+  // Destroy all pages, and refetch from the readOffset (default: 0)
+  // Reset does not `unfetch` any destroyed page
   reset(readOffset){
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
