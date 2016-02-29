@@ -199,7 +199,7 @@ export default class Dataset {
       let minLoadHorizon = Math.max(minLoadPage, 0);
       let maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
 
-      // Unload Pages outside the `unloadHorizons`
+      // Unload all pages
       for (var i = 0; i < pages.length; i += 1) {
         this._unloadPage(pages, i);
       }
@@ -225,7 +225,7 @@ export default class Dataset {
     readOffset = (readOffset >= 0) ? readOffset : 0;
     let state = this.state.update((next)=> {
       next.readOffset = readOffset;
-      let pages  = next.pages = [];
+      let pages  = next.pages = []; // destroys all pages
 
       let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
       let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
