@@ -189,7 +189,7 @@ describe("Dataset", function() {
     beforeEach(function() {
       this.recordAtPage = function(pageIndex) {
         if(pageIndex < this.state.pages.length) {
-          return this.state.get(pageIndex * this.recordsPerPage);
+          return this.state.pages[pageIndex].records[0];
         } else {
           return undefined;
         }
@@ -386,6 +386,158 @@ describe("Dataset", function() {
         });
       });
     });
+
+    describe("fetching filtered records", function() {
+      beforeEach(function() {
+        this.server = new Server();
+        this.options = {
+          pageSize: 10,
+          unloadHorizon: 10,
+          fetch: (pageOffset, pageSize, stats) => {
+            stats.totalPages = 5;
+            return this.server.request(pageOffset, pageSize, stats);
+          },
+          filter: (record) => {
+            // Filter only Odd Indexed Records
+            return record && (parseInt(record.name.substr(7)) % 2);
+          },
+          observe: (state) => {
+            this.state = state;
+          }
+        };
+        this.dataset = new Dataset(this.options);
+        this.dataset.setReadOffset(0);
+      });
+
+      it("fetches a page of records", function() {
+        expect(this.server.requests.length).to.equal(1);
+        expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
+        expect(this.dataset.state.length).to.equal(10);
+      });
+      it("returns a pending state", function() {
+        expect(this.dataset.state.isPending).to.be.true;
+      });
+      it("fetches a set of empty Pending records", function() {
+        let record = this.dataset.state.get(0);
+        expect(record.index).to.equal(0);
+        expect(record.isPending).to.be.true;
+        expect(record.content).to.equal(null);
+        expect(record.page.offset).to.equal(0);
+      });
+      describe("resolving all fetch request", function() {
+        beforeEach(function() {
+          return this.server.resolveAll();
+        });
+        it("sets total pages", function() {
+          expect(this.state.stats.totalPages).to.equal(5);
+        });
+        it("filters records on the first page", function () {
+          expect(this.state.length).to.equal(45);
+          const record = this.state.get(0);
+          expect(record.isResolved).to.be.true;
+          expect(record.content.name).to.equal("Record 1");
+        });
+        describe("incrementing the readOffset ahead two pages", function() {
+          beforeEach(function() {
+            this.dataset.setReadOffset(20);
+            return this.server.resolveAll();
+          });
+          it("has two resolved pages", function() {
+            expect(this.recordAtPage(0).isResolved).to.be.false;
+            expect(this.recordAtPage(1).isResolved).to.be.true;
+            expect(this.recordAtPage(2).isResolved).to.be.true;
+            expect(this.recordAtPage(3).isResolved).to.be.false;
+            expect(this.recordAtPage(4).isResolved).to.be.false;
+            expect(this.recordAtPage(5)).to.be.empty;
+          });
+          it("filters two pages of records", function () {
+            const pageSize = 10;
+            const filteredRecordPerPage = 5;
+            const unfilteredLength = this.state.pages.length * pageSize;
+            const filteredLength = unfilteredLength - (2 * filteredRecordPerPage);
+            expect(this.state.length).to.equal(filteredLength);
+
+          });
+          it("filters records on the second and third page", function () {
+            expect(this.recordAtPage(1).content.name).to.equal("Record 11");
+            expect(this.recordAtPage(2).content.name).to.equal("Record 21");
+            const record = this.state.get(18);
+            expect(record.content.name).to.equal("Record 27");
+            const outOfBoundsRecord = this.state.get(40);
+            expect(outOfBoundsRecord).to.equal(null);
+          });
+        });
+        describe("mutating records", function() {
+          beforeEach(function() {
+            let record = this.state.get(0);
+            record.content.name = "Record 100";
+          });
+
+          describe("without refiltering the dataset", function() {
+            it("mutates the record", function() {
+              const record = this.state.get(0);
+              expect(record.content.name).to.equal("Record 100");
+            });
+            it("does not filter out the record", function () {
+              expect(this.state.length).to.equal(45);
+            });
+          });
+
+          describe("with refiltering the dataset", function() {
+            beforeEach(function() {
+              this.dataset.refilter();
+            });
+
+            it("filters out the record", function () {
+              expect(this.state.length).to.equal(44);
+            });
+
+            it("find a new record", function() {
+              const record = this.state.get(0);
+              expect(record.content.name).to.equal("Record 3");
+            });
+          });
+          describe("with reloading the dataset", function() {
+            beforeEach(function() {
+              return this.dataset.reload();
+            });
+
+            it("reloads the state", function () {
+              expect(this.state.isPending).to.be.true;
+            });
+
+            it("maintains the total number of records", function () {
+              expect(this.state.length).to.equal(50);
+            });
+
+            it("loses the mutated record", function () {
+              const record = this.state.get(0);
+              expect(record.content).to.be.equal(null);
+            });
+          });
+          describe("with resetting the dataset", function() {
+            beforeEach(function() {
+              return this.dataset.reset();
+            });
+
+            it("resets the state", function () {
+              expect(this.state.isPending).to.be.true;
+            });
+
+            it("resets the total number of records", function () {
+              expect(this.state.length).to.equal(10);
+            });
+
+            it("loses the mutated record", function () {
+              const record = this.state.get(0);
+              expect(record.content).to.be.equal(null);
+            });
+          });
+        });
+      });
+
+    });
+
 
     describe("Statistics ", function() {
       beforeEach(function() {

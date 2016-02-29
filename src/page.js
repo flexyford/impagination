@@ -21,7 +21,7 @@ class UnrequestedPage {
   get isRejected() { return false; }
   get isSettled() { return !this.isPending && (this.isResolved || this.isRejected); }
 
-  get records() {
+  get records(){
     if (!this._records) {
       this._records = this.data.map(function (content, index) {
         return new Record(this, content, index);
@@ -46,8 +46,8 @@ class PendingPage extends UnrequestedPage {
 
   get isPending() { return true; }
 
-  resolve(records) {
-    return new ResolvedPage(this, records);
+  resolve(records, filterCallback) {
+    return new ResolvedPage(this, records, filterCallback);
   }
 
   reject(error) {
@@ -64,9 +64,11 @@ class PendingPage extends UnrequestedPage {
 }
 
 class ResolvedPage extends PendingPage {
-  constructor(pending, data) {
+  constructor(pending, data, filterCallback) {
     super(pending);
-    this.data = data;
+    this.unfilteredData = data;
+    this.filterCallback = filterCallback || function() {return true;};
+    this.data = this.unfilteredData.filter(this.filterCallback);
   }
   get isPending() { return false; }
   get isResolved() { return true; }
