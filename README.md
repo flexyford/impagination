@@ -63,7 +63,7 @@ state.get(0) //=> null;
 ```
 
 To tell where to start reading, you update the dataset's "read
-offset". It's the only "imperative" API that impagination exposes, and
+offset". It's one of the ["imperative" APIs that impagination exposes](#dataset-api-functions), and
 it indicates where you're interested in accessing records. Let's start
 at the beginning.
 
@@ -228,6 +228,16 @@ record.isResolved //=> false
 record.isPending //=> true
 record.content //=> null
 ```
+
+### Dataset API functions
+There are a number of public `impagination` functions which we provide as actions.
+
+| Action Name   | Params         | Default         | Description   |
+| ------------- |:--------------:|:---------------:|:--------------|
+| refilter      |    _none_      |   _none_        | Reapplies the filter to all resolved pages.
+| reload        | `offset`       | _currentOffset_ | Unfetches all pages and fetches records at starting at `offset`
+| reset         | `offset`       |     0           | Destroys  all pages and fetches records at starting at `offset`
+| setReadOffset | `offset`       |   _none_        | Sets the readOffset and fetches records resuming at `offset`
 
 ### Impagination and Immutability
 
