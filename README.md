@@ -172,6 +172,7 @@ record = state.get(23);
 record.isRequested //=> false
 record.isPending //=> false
 record.content //> null
+```
 
 ### Dataset API
 There are a number of public `impagination` functions which we provide as actions to update the dataset.
