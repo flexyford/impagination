@@ -66,7 +66,7 @@ state.get(0) //=> null;
 ```
 
 To tell where to start reading, you update the dataset's "read
-offset". It's one of the ["imperative" APIs that impagination exposes](#dataset-api-functions),
+offset". It's one of the [APIs that impagination exposes](#dataset-api),
 and it indicates where you're interested in accessing records. Let's start
 at the beginning.
 
