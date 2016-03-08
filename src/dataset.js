@@ -1,5 +1,6 @@
 import Page from './page';
 import Record from './record';
+import findIndex from './find-index';
 
 class State {
   constructor() {
@@ -52,7 +53,7 @@ class State {
       const maxUnloadIndex = index - (minUnloadHorizon * this.pageSize);
       offset.recordIndex = maxUnloadIndex;
 
-      const minUnloadPageOffset = this.pages.slice(minUnloadHorizon, maxUnloadHorizon).findIndex(function(page) {
+      const minUnloadPageOffset = findIndex(this.pages.slice(minUnloadHorizon, maxUnloadHorizon), function(page) {
         if(this.recordIndex < page.records.length) {
           return true;
         } else {
