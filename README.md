@@ -34,7 +34,7 @@ let dataset = new Dataset({
   loadHorizon: 10,
   // fetch in pages of 5 (default 10)
   pageSize: 5,
-  // this fake fetch function returns a page where the "records" *are*
+  // this fetch function returns a page where the "records" *are*
   // the offsets
   fetch: function(pageOffset, pageSize, stats) {
     stats.totalPages = 5;
@@ -46,6 +46,9 @@ let dataset = new Dataset({
   },
   // unfetch() function is invoked whenever a page is unloaded
   unfetch: function(records, pageOffset) {}
+  // filter() function which filters records from a new state whenever a page resolves or 
+  // when calling `refilter` on the dataset
+  filter: function(element, index, array) {}
   // observe() function is invoked whenever a new state is generated.
   observe: function(nextState) {
     state = nextState;
@@ -169,8 +172,19 @@ record = state.get(23);
 record.isRequested //=> false
 record.isPending //=> false
 record.content //> null
-```
 
+### Dataset API
+There are a number of public `impagination` functions which we provide as actions to update the dataset.
+
+| Actions       | Params         | Default         | Description   |
+| ------------- |:--------------:|:---------------:|:--------------|
+| refilter      |    _none_      |   _none_        | Reapplies the filter to all resolved pages.
+| reload        | `offset`       | _currentOffset_ | Unfetches all pages and fetches records at starting at `offset`
+| reset         | `offset`       |     0           | Destroys  all pages and fetches records at starting at `offset`
+| setReadOffset | `offset`       |   _none_        | Sets the readOffset and fetches records resuming at `offset`
+
+
+#### setReadOffset Example
 Let's say we want to move the read head to offset 2 with a call to
 `dataset.setReadOffset(2)`. This will immediately emit a new state that
 looks like this:
@@ -224,6 +238,54 @@ record.content //=> 10
 
 //records on p1 are still pending
 record = state.get(7);
+record.isResolved //=> false
+record.isPending //=> true
+record.content //=> null
+```
+
+
+#### Filtering Records
+We fetch records using an immutable style, but we often require filtering by mutable values in our dataset. To enable filtering, pass a filter `callback` to `impagination` as you would to `Array.prototype.filter()`. The filters are applied as soon as a page is resolved. To filter a page at other times in your application see [`refilter`](#dataset-api).
+
+Here we filter by records whose content contains an even number
+```javascript
+import { Dataset } from 'impagination';
+
+let state = null;
+
+let dataset = new Dataset({
+  // . . . 
+  // filter() function which returns only _even_ records
+  // when calling `refilter` on the dataset
+  filter: function(content) { return content % 2 === 0 }
+  // . . . 
+});
+```
+
+```
+                 Read
+                Offset
+                   ┃
+                   ┃
+     <──────────Load Horizon──────────>
+                   ┃
+                   ▼
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+               0   2   4 * * * * * ** ** ** ** ** xx xx xx xx xx xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              │         │         │              │              │
+             p0        p1        p2             p3             p4
+```
+
+```javascript
+// Finding even numbered records
+record = state.get(1);
+record.isResolved //=> true
+record.content //=> 2
+state.length //=> 23 (stats.totalPages: 5, pageSize: 5, rejected records by filter: 2)
+
+//records on p1 are still pending
+record = state.get(3); // The record at index 3 now exists on p1
 record.isResolved //=> false
 record.isPending //=> true
 record.content //=> null
