@@ -2,260 +2,144 @@ import Page from './page';
 import Record from './record';
 import findIndex from './find-index';
 
-class State {
-  constructor() {
-    this.isPending = false;
-    this.isRejected = false;
-    this.isResolved = false;
-    this.pages = [];
-    this.stats = {
-      totalPages: undefined
-    };
-    this.length = 0;
+export default class Idle {
+  constructor(previous = {}, attrs = {}) {
+    Object.assign(this, {
+      pages: [],
+      length: 0,
+      stats: { totalPages: undefined }
+    }, previous, attrs);
   }
 
+  // State Properties
+  get isIdle() { return true; }
+  get isCreated() { return !this.isIdle; }
+  get isPending() { return false; }
+  get isResolved() { return false; }
+  get isRejected() { return false; }
   get isSettled()  { return !this.isPending && (this.isRejected || this.isResolved); }
 
-  update(change) {
-    let next = new State();
-    next.isPending = this.isPending;
-    next.isResolved = this.isResolved;
-    next.isRejected = this.isRejected;
-    next.length = this.length;
-    next.pageSize = this.pageSize;
-    next.loadHorizon = this.loadHorizon;
-    next.unloadHorizon = this.unloadHorizon;
-    next.readOffset = this.readOffset;
-    next.pages = this.pages.slice();
-    next.stats.totalPages = this.stats.totalPages;
-    change.call(this, next);
-    next.pages = Object.freeze(next.pages);
-    return next;
+  // Lazy Array Properties
+  get slice() { return []; }
+  get filter() { return []; }
+
+  init(options) {
+    return new Created(this, options);
+  }
+}
+
+class Created extends Idle {
+  constructor(previous, attrs) {
+    super(previous, attrs);
   }
 
-  get(index) {
-    if(index >= this.length) {return null;}
+  // State Properties
+  get isIdle() { return false; }
 
-    let offset = {
-      // Compute Record and Page Offsets without page filtering
-      pageIndex: Math.floor(index / this.pageSize),
-      recordIndex: index % this.pageSize
-    };
+  // TODO: Test what happens when end is negative
+  get slice(start, end) {
+    if (typeof start !== "number") { start = 0; }
+    if (typeof end !== "number") { end = this.length; }
 
-    // Dynamically find the page offset
-    const minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
-    const minUnloadHorizon = Math.max(minUnloadPage, 0);
+    let length = end - start;
+    if (length < 0) { return []; }
 
-    if(offset.pageIndex >= minUnloadHorizon) {
-      // Compute Record Offset with page filtering
-      const maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
-      const maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
-      const maxUnloadIndex = index - (minUnloadHorizon * this.pageSize);
-      offset.recordIndex = maxUnloadIndex;
+    let sliced = [];
+    let startPageOffset = Math.floor(start / this.pageSize);
+    let endPageOffset = Math.floor((end - 1) / this.pageSize + 1);
 
-      const minUnloadPageOffset = findIndex(this.pages.slice(minUnloadHorizon, maxUnloadHorizon), function(page) {
-        if(this.recordIndex < page.records.length) {
-          return true;
-        } else {
-          this.recordIndex -= page.records.length;
-          return false;
-        }
-        return this.recordIndex < page.records.length;
-      }, offset);
-
-      if(minUnloadPageOffset < 0 ){
-        // page not found in Unload Horizons
-        offset.pageIndex = Math.floor(offset.recordIndex / this.pageSize) + maxUnloadHorizon;
-      } else {
-        offset.pageIndex = minUnloadPageOffset + minUnloadHorizon;
+    for (let i = startPageOffset; i < endPageOffset; i++) {
+      let startIndex = (i === startPageOffset) ?
+            start % this.pageSize : 0;
+      let endIndex = (i === endPageOffset) ?
+            (end - 1) % this.pageSize + 1 : this.pageSize;
+      let page = this.pages[i];
+      if (page) {
+        let records = page.records.slice(startIndex, endIndex);
+        sliced = sliced.concat(records);
       }
     }
 
-    const page = this.pages[offset.pageIndex];
-    return page && page.records[offset.recordIndex] || null;
+    return sliced;
   }
-}
 
-function isEmpty(hash){
-  return Object.keys(hash).length === 0;
-}
+  // TODO: Test what happens when deleteCount is negative
+  // Alright `splice` is hard. It might have to come later
+  splice(start) {
+    let items = Array.prototype.slice.call(arguments, 1);
+    let deleteCount = this.length - start;
+    if (typeof items[0] === "number") { deleteCount = items.unshift(); }
 
-export default class Dataset {
-
-  constructor(options = {}) {
-    if (!options.pageSize) {
-      throw new Error('created Dataset without pageSize');
-    }
-    if (!options.fetch) {
-      throw new Error('created Dataset without fetch()');
-    }
-
-    this._pageSize = Number(options.pageSize);
-    this._fetch = options.fetch;
-    this._unfetch = options.unfetch || function() {};
-    this._observe = options.observe || function() {};
-    this._filter = options.filter || function() {return true;};
-    this.state = new State();
-    this.state.pageSize = Number(this._pageSize);
-    this.state.loadHorizon = Number(options.loadHorizon || this._pageSize);
-    this.state.unloadHorizon = Number(options.unloadHorizon) || Infinity;
-
-    if (this.state.unloadHorizon < this.state.loadHorizon) {
-      throw new Error('created Dataset with unloadHorizon less than loadHorizon');
-    }
+    let removed = this.slice(start, start + deleteCount);
+    // TODO: Modify pages here
+    // this.pages = this.slice(0, start).
+    //   concat(items).
+    //   concat(this.slice(start + deleteCount + 1, this.length));
+    return removed;
   }
 
   setReadOffset(readOffset) {
-    if (this.state.readOffset === readOffset) { return; }
-    readOffset = (readOffset >= 0) ? readOffset : 0;
-    let state = this.state.update((next)=> {
-      next.readOffset = readOffset;
-      let pages  = next.pages;
-
-      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
-      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
-      let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
-      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
-
-      var minLoadHorizon = Math.max(minLoadPage, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
-      var minUnloadHorizon = Math.max(minUnloadPage, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
-
-      // Unload Pages outside the `unloadHorizons`
-      for (var i = 0; i < minUnloadHorizon; i += 1) {
-        this._unloadPage(pages, i);
-      }
-      for (i = maxUnloadHorizon; i < pages.length; i += 1) {
-        this._unloadPage(pages, i);
-      }
-
-      // Initialize Unfetched Pages between current Horizons
-      let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
-      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
-      for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        this._touchPage(pages, i);
-      }
-
-      this._adjustTotalRecords(next);
-
-      // Request and Fetch Records within the `loadHorizons`
-      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-        let page = pages[i];
-
-        if (!page.isRequested) {
-          pages[i] = page.request();
-          this._fetchPage(pages[i]);
-        }
-      }
-
-      if (readOffset >= next.length) {
-        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
-      }
-      this._setStateStatus(next);
-    });
-    this._observe(this.state = state);
+    return new Pending(this, {readOffset});
   }
 
-  // Applies the filter to all possible Resolved Pages
-  refilter(){
-    let readOffset = this.state.readOffset;
-    let state = this.state.update((next)=> {
-      next.readOffset = readOffset;
-      let pages  = next.pages;
+  /**
+   * Impagination Does Not support Array Iterators at the moment
+   * For Large Datasets this can get expensive
+   * TODO: Consider using a Weak Map?
+   * filter() {}
+   */
+  _setDefaults() {
+    if (!this.pageSize) {
+      throw new Error('created Dataset without pageSize');
+    }
+    if (!this.fetch) {
+      throw new Error('created Dataset without fetch()');
+    }
 
-      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
-      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
-      let minUnloadPage = Math.floor((readOffset - next.unloadHorizon) / next.pageSize);
-      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
+    this.pageSize = Number(this.pageSize);
+    this.loadHorizon = Number(this.loadHorizon || this.pageSize);
+    this.unloadHorizon = Number(this.unloadHorizon) || Infinity;
 
-      var minLoadHorizon = Math.max(minLoadPage, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
-      var minUnloadHorizon = Math.max(minUnloadPage, 0);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
-
-      // Filter Pages between current Horizons
-      let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
-      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
-      for (var i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
-        this._filterPage(pages, i);
-      }
-
-      // Update the total number of records after applying filters
-      this._adjustTotalRecords(next);
-    });
-    this._observe(this.state = state);
+    if (this.unloadHorizon < this.loadHorizon) {
+      throw new Error('created Dataset with unloadHorizon less than loadHorizon');
+    }
+    this.pages = new Pages();
+    this.unfetch = this.unfetch || function() {};
+    this.pages =  this._allocatePages(this);
+    this.length = this._getTotalRecords(this.pages);
   }
 
-  // Unload all pages, and refetch from the readOffset (default: 0)
-  // Reload does `unfetch` all unloaded pages
-  reload(readOffset){
-    readOffset = (readOffset >= 0) ? readOffset : 0;
-    let state = this.state.update((next)=> {
-      next.readOffset = readOffset;
-      let pages  = next.pages;
+  _allocatePages() {
+    let maxLoadPage = Math.ceil((this.loadHorizon) / this.pageSize);
+    let maxUnloadPage = Math.ceil((this.unloadHorizon) / this.pageSize);
 
-      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
-      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
-      let minLoadHorizon = Math.max(minLoadPage, 0);
-      let maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
+    var maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+    var maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
 
-      // Unload all pages
-      for (var i = 0; i < pages.length; i += 1) {
-        this._unloadPage(pages, i);
-      }
-      this._adjustTotalRecords(next);
-
-      // Request and Fetch Records within the `loadHorizons`
-      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-        pages[i] = pages[i].request();
-        this._fetchPage(pages[i]);
-      }
-
-      if (readOffset >= next.length) {
-        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
-      }
-      this._setStateStatus(next);
-    });
-    this._observe(this.state = state);
+    // Initialize Pages up to Max Horizon
+    let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
+    return this._buildPages(0, currentMaxHorizon, this.pages);
   }
 
-  // Destroy all pages, and refetch from the readOffset (default: 0)
-  // Reset does not `unfetch` any destroyed page
-  reset(readOffset){
-    readOffset = (readOffset >= 0) ? readOffset : 0;
-    let state = this.state.update((next)=> {
-      next.readOffset = readOffset;
-      let pages  = next.pages = []; // destroys all pages
+  _buildPages(start, end, pages) {
+    pages = pages.slice();
+    for (var i = start; i < end; i += 1) {
+      this.touchPage(pages, i);
+    }
+    return pages;
+  }
 
-      let minLoadPage = Math.floor((readOffset  - next.loadHorizon) / next.pageSize);
-      let maxLoadPage = Math.ceil((readOffset  + next.loadHorizon) / next.pageSize);
-      let maxUnloadPage = Math.ceil((readOffset  + next.unloadHorizon) / next.pageSize);
-
-      var minLoadHorizon = Math.max(minLoadPage, 0);
-      var maxLoadHorizon = Math.min(next.stats.totalPages || Infinity, maxLoadPage);
-      var maxUnloadHorizon = Math.min(next.stats.totalPages || Infinity, maxUnloadPage, next.pages.length);
-
-      // Initialize Pages up to Max Horizon
-      let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
-      for (var i = 0; i < currentMaxHorizon; i += 1) {
-        this._touchPage(pages, i);
-      }
-
-      this._adjustTotalRecords(next);
-
-      // Request and Fetch Records within the `loadHorizons`
-      for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-        pages[i] = pages[i].request();
-        this._fetchPage(pages[i]);
-      }
-
-      if (readOffset >= next.length) {
-        console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
-      }
-      this._setStateStatus(next);
-    });
-    this._observe(this.state = state);
+  /* Returns the page at the given index
+   * Mutates `pages` array
+   * If no page exists it generates and returns a new Page instance
+   */
+  _touchPage(pages, i) {
+    var page = pages[i];
+    if(!page) {
+      page = new Page(i, this.pageSize);
+      pages.splice(i, 1, page);
+    }
+    return page;
   }
 
   /* Unloads a page at the given index and returns the unloaded page */
@@ -269,84 +153,190 @@ export default class Dataset {
     return page;
   }
 
-  /* Returns the page at the given index
-   * If no page exists it generates and returns a new Page instance */
-  _touchPage(pages, i) {
-    var page = pages[i];
-    if(!page) {
-      page = new Page(i, this._pageSize);
-      pages.splice(i, 1, page);
-    }
-    return page;
-  }
-
-  /* Returns the page at the given index
-   * If the page is a resolved page, it reruns the filters
-   * and returns a new ResolvedPage instance */
-  _filterPage(pages, i) {
-    let page = this._touchPage(pages, i);
-    if(page.isResolved) {
-      page = page.resolve(page.unfilteredData, page.filterCallback);
-      pages.splice(i, 1, page);
-    }
-    return page;
-  }
-
-  _adjustTotalPages(pages, stats) {
-    if(stats.totalPages > pages.length) {
-      // touch pages
-      for (let i = pages.length; i < stats.totalPages; i += 1) {
-        this._touchPage(pages, i);
-      }
-    } else if(stats.totalPages < pages.length) {
-      // remove pages
-      pages.splice(stats.totalPages, pages.length);
-    }
-  }
-
-  _adjustTotalRecords(state) {
-    state.length = state.pages.reduce((length, page) => {
+  _getTotalRecords(pages) {
+    return pages.reduce((length, page) => {
       return length + page.data.length;
     }, 0);
   }
 
-  _setStateStatus(state) {
-    state.isPending = false;
-    state.isRejected = false;
-    state.isResolved = false;
-    for(let i = 0; i<state.pages.length; i++) {
-      let page = state.pages[i];
-      state.isPending = state.isPending || page.isPending;
-      state.isRejected = state.isRejected || page.isRejected;
-      state.isResolved = !(state.isPending && state.isRejected) && page.isResolved;
+}
+
+class Pending extends Allocated {
+  constructor(previous, attrs) {
+    super(previous, attrs);
+  }
+
+  resolve(records, stats, offset){
+    let unresolved = this.pages.slice()[offset];
+    let resolved = unresolved.resolve(records);
+
+    let pages = this.pages.slice().splice(offset, 1, resolved);
+    return new Resolved(this, { pages, stats });
+  }
+
+  reject(error, stats, offset) {
+    let unresolved = this.pages.slice()[offset];
+    let rejected = unresolved.reject(error);
+
+    let pages = this.pages.slice().splice(offset, 1, rejected);
+    return new Resolved(this, { pages, stats });
+  }
+
+  setReadOffset(readOffset) {
+    super.setReadOffset(readOffset);
+  }
+
+  clear() {
+    return new Idle();
+  }
+
+  unload(readOffset) {
+    return new Unloaded(this, { readOffset });
+  }
+
+  _setDefaults() {
+    this.readOffset = this.readOffset || 0;
+    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
+    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
+    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
+    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+
+    var minLoadHorizon = Math.max(minLoadPage, 0);
+    var maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+    var minUnloadHorizon = Math.max(minUnloadPage, 0);
+    var maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.pages.length);
+
+    let unrequested =  this._allocatePages(minLoadHorizon, maxLoadHorizon, minUnloadHorizon, maxUnloadHorizon);
+    this.pages = this._fetchPages(unrequested);
+    this.length = this._getTotalRecords(this.pages);
+  }
+
+  _allocatePages(minLoadHorizon, maxLoadHorizon, minUnloadHorizon, maxUnloadHorizon, pages) {
+    pages = pages || this.pages.slice();
+
+    // Unload Pages outside the `unloadHorizons`
+    for (var i = 0; i < minUnloadHorizon; i += 1) {
+      this._unloadPage(pages, i);
     }
+    for (i = maxUnloadHorizon; i < pages.length; i += 1) {
+      this._unloadPage(pages, i);
+    }
+
+    // Initialize Unfetched Pages between current Horizons
+    let currentMinHorizon = Math.min(minUnloadHorizon, minLoadHorizon);
+    let currentMaxHorizon = Math.max(maxUnloadHorizon, maxLoadHorizon);
+    for (i = currentMinHorizon; i < currentMaxHorizon; i += 1) {
+      this._touchPage(pages, i);
+    }
+  }
+
+  _fetchPages(pages) {
+    pages = pages || this.pages.slice();
+    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
+    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
+    let minLoadHorizon = Math.max(minLoadPage, 0);
+    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+
+    // Request and Fetch Records within the `loadHorizons`
+    for (i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
+      let page = pages[i];
+
+      if (!page.isRequested) {
+        pages[i] = page.request();
+        this._fetchPage(pages[i]);
+      }
+    }
+
+    if (readOffset >= next.length) {
+      console.warn(`Warning: Requested records at readOffset ${readOffset}. Maximum readOffset: ${next.length - 1}`);
+    }
+
+    return pages;
   }
 
   _fetchPage(page) {
     let offset = page.offset;
-    let pageSize = this.state.pageSize;
-    let stats = {totalPages: this.state.totalPages };
-    return this._fetch.call(this, offset, pageSize, stats).then((records = []) => {
-      let state = this.state.update((next)=> {
-        next.stats = stats;
-        if(page !== next.pages[offset]) { return; }
-        // Filter on page update
-        next.pages[offset] = page.resolve(records, this._filter);
-        this._adjustTotalPages(next.pages, stats);
-        this._adjustTotalRecords(next);
-        this._setStateStatus(next);
-      });
-      this._observe(this.state = state);
+    let pageSize = this.pageSize;
+    let stats = {totalPages: this.stats.totalPages };
+    return this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
+      if(page !== this.pages[offset]) { return; }
+      this.resolve(records, stats, offset);
     }).catch((error = {}) => {
-      let state = this.state.update((next)=> {
-        next.stats = stats;
-        if(page !== next.pages[offset]) { return; }
-        next.pages[offset] = page.reject(error);
-        this._adjustTotalPages(next.pages, stats);
-        this._adjustTotalRecords(next);
-        this._setStateStatus(next);
-      });
-      this._observe(this.state = state);
+      if(page !== this.pages[offset]) { return; }
+      this.reject(error, stats, offset);
     });
+  }
+}
+
+class Unloaded extends Created {
+  constructor(previous, attrs) {
+    attrs.readOffset = attrs.readOffset || 0;
+    super(previous, attrs);
+  }
+
+  _setDefaults() {
+    this.pages =  this._unloadPages();
+    this.length = this._getTotalRecords(this.pages);
+  }
+
+  _unloadPages() {
+    let pages = this.pages.slice();
+    for (var i = 0; i < pages.length; i += 1) {
+      this._unloadPage(pages, i);
+    }
+    return pages;
+  }
+
+  /* Unloads a page at the given index and returns the unloaded page */
+  _unloadPage(pages, i) {
+    let page = this._touchPage(pages, i);
+    if (page.isRequested) {
+      this._unfetch.call(this, page.data, page.offset);
+      page = page.unload();
+      pages.splice(i, 1, page);
+    }
+    return page;
+  }
+}
+
+class Resolved extends Pending {
+  constructor(previous, attrs) {
+    super(previous, attrs);
+  }
+
+  get isPending() { return false; }
+  get isResolved() { return true; }
+
+  setReadOffset(readOffset) {
+    return super.setReadOffset(readOffset);
+  }
+
+  clear() {
+    return super.clear();
+  }
+
+  _setDefaults() {}
+}
+
+class Rejected extends Pending {
+  constructor(previous, attrs) {
+    super(previous, attrs);
+  }
+
+  get isPending() { return false; }
+  get isRejected() { return true; }
+
+  _setDefaults() {}
+
+  setReadOffset(readOffset) {
+    return super.setReadOffset(readOffset);
+  }
+
+  clear() {
+    return super.clear();
+  }
+
+  unload(readOffset) {
+    return super.unload(readOffset);
   }
 }
