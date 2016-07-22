@@ -6,20 +6,54 @@ import { Server, PageRequest } from './test-server';
 
 
 describe("Dataset", function() {
-  describe("instantiating a new dataset", function() {
+  describe("initializing a new dataset", function() {
+    beforeEach(function() {
+      this.dataset = new Dataset();
+    });
+
+    it("initializes the state", function() {
+      expect(this.dataset.isIdle).to.be.true;
+      expect(this.dataset.isAllocated).to.be.false;
+      expect(this.dataset.isPending).to.be.false;
+      expect(this.dataset.isResolved).to.be.false;
+      expect(this.dataset.isRejected).to.be.false;
+      expect(this.dataset.isSettled).to.be.false;
+    });
+
+    it("initializes the state attributes", function() {
+      expect(this.dataset.length).to.equal(0);
+      expect(this.dataset.pages.length).to.equal(0);
+      expect(this.dataset.stats).to.exist;
+    });
+  });
+
+  describe("initializing a new dataset", function() {
     it("cannot be instantiated without pageSize", function() {
       var err = "";
-      try { new Dataset(); } catch(e) { err = e; }
+      try {
+        new Dataset().init();
+      } catch(e) { err = e; }
       expect(err).to.match(/without pageSize/);
     });
     it("cannot be instantiated without fetch()", function () {
       var err = "";
-      try { new Dataset({pageSize: 1}); } catch(e) { err = e; }
+      try {
+        new Dataset().init({
+          pageSize: 1
+        });
+      } catch(e) { err = e; }
       expect(err).to.match(/without fetch/);
     });
     it("cannot be instantiated with unloadHorizon less than loadHorizon", function () {
       var err = "";
-      try { new Dataset({pageSize: 1, fetch: ()=>{}, loadHorizon: 5, unloadHorizon: 1}); } catch(e) { err = e; }
+      try {
+        new Dataset().init({
+          pageSize: 1,
+          fetch: ()=>{},
+          loadHorizon: 5,
+          unloadHorizon: 1
+        });
+      } catch(e) { err = e; }
       expect(err).to.match(/unloadHorizon less than loadHorizon/);
     });
 
@@ -27,7 +61,7 @@ describe("Dataset", function() {
       beforeEach(function() {
         this.server = new Server();
         this.requests = this.server.requests;
-        this.dataset = new Dataset({
+        this.dataset = new Dataset().init({
           pageSize: 10,
           fetch: (pageOffset, pageSize, stats)=> {
             return this.server.request(pageOffset, pageSize, stats);
@@ -35,24 +69,25 @@ describe("Dataset", function() {
         });
       });
       it("has default constructor values", function() {
-        expect(this.dataset._fetch).to.be.instanceOf(Function);
-        expect(this.dataset._pageSize).to.equal(10);
-        expect(this.dataset._unfetch).to.be.instanceOf(Function);
-        expect(this.dataset._observe).to.be.instanceOf(Function);
+        expect(this.dataset.fetch).to.be.instanceOf(Function);
+        expect(this.dataset.pageSize).to.equal(10);
+        expect(this.dataset.unfetch).to.be.instanceOf(Function);
       });
 
       it("initializes the state", function() {
-        expect(this.dataset.state.isPending).to.be.false;
-        expect(this.dataset.state.isResolved).to.be.false;
-        expect(this.dataset.state.isRejected).to.be.false;
-        expect(this.dataset.state.isSettled).to.be.false;
+        expect(this.dataset.isIdle).to.be.false;
+        expect(this.dataset.isAllocated).to.be.true;
+        expect(this.dataset.isPending).to.be.false;
+        expect(this.dataset.isResolved).to.be.false;
+        expect(this.dataset.isRejected).to.be.false;
+        expect(this.dataset.isSettled).to.be.false;
       });
 
       it("initializes the state attributes", function() {
-        expect(this.dataset.state).to.be.instanceOf(Object);
-        expect(this.dataset.state.length).to.equal(0);
-        expect(this.dataset.state.loadHorizon).to.equal(10);
-        expect(this.dataset.state.unloadHorizon).to.equal(Infinity);
+        expect(this.dataset).to.be.instanceOf(Object);
+        expect(this.dataset.length).to.equal(0);
+        expect(this.dataset.loadHorizon).to.equal(10);
+        expect(this.dataset.unloadHorizon).to.equal(Infinity);
       });
 
       it("does not fetch a page", function() {
@@ -60,7 +95,7 @@ describe("Dataset", function() {
       });
 
       it("does not have any records", function() {
-        let record = this.dataset.state.get(0);
+        let record = this.dataset.records.get(0);
         expect(record).to.equal(null);
       });
 
@@ -71,13 +106,13 @@ describe("Dataset", function() {
         it("fetches a page of records", function() {
           expect(this.server.requests.length).to.equal(1);
           expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
-          expect(this.dataset.state.length).to.equal(10);
+          expect(this.dataset.length).to.equal(10);
         });
         it("returns a pending state", function() {
-          expect(this.dataset.state.isPending).to.be.true;
+          expect(this.dataset.isPending).to.be.true;
         });
         it("fetches a set of empty Pending records", function() {
-          let record = this.dataset.state.get(0);
+          let record = this.dataset.pages.records.get(0);
           expect(record.index).to.equal(0);
           expect(record.isRequested).to.be.true;
           expect(record.isPending).to.be.true;
@@ -412,13 +447,13 @@ describe("Dataset", function() {
       it("fetches a page of records", function() {
         expect(this.server.requests.length).to.equal(1);
         expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
-        expect(this.dataset.state.length).to.equal(10);
+        expect(this.dataset.length).to.equal(10);
       });
       it("returns a pending state", function() {
-        expect(this.dataset.state.isPending).to.be.true;
+        expect(this.dataset.isPending).to.be.true;
       });
       it("fetches a set of empty Pending records", function() {
-        let record = this.dataset.state.get(0);
+        let record = this.dataset.pages.records.get(0);
         expect(record.index).to.equal(0);
         expect(record.isPending).to.be.true;
         expect(record.content).to.equal(null);
@@ -599,7 +634,7 @@ describe("Dataset", function() {
                 expect(this.recordAtPage(9).isRequested).to.be.true;
               });
               it("does not have a record at the readOffset", function() {
-                let record = this.dataset.state.get(100);
+                let record = this.dataset.pages.records.get(100);
                 expect(record).to.equal(null);
               });
               it("is in a pending state", function() {

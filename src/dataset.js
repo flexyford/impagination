@@ -1,4 +1,4 @@
-import Pages from './pages';
+import Pages from './pages-interface';
 import Record from './record';
 import findIndex from './find-index';
 
@@ -6,14 +6,13 @@ export default class Idle {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
       pages: [],
-      length: 0,
       stats: { totalPages: undefined }
     }, previous, attrs);
   }
 
   // State Properties
   get isIdle() { return true; }
-  get isCreated() { return !this.isIdle; }
+  get isAllocated() { return !this.isIdle; }
   get isPending() { return false; }
   get isResolved() { return false; }
   get isRejected() { return false; }
@@ -23,6 +22,7 @@ export default class Idle {
   get slice() { return []; }
   get filter() { return []; }
 
+  get records() { return []; }
   get length() { return 0; }
 
   init(options) {
@@ -32,7 +32,7 @@ export default class Idle {
 
 class Allocated extends Idle {
   constructor(previous, attrs) {
-    Object.assign(this, previous, attrs);
+    super(previous, attrs);
     if (!this.pageSize) {
       throw new Error('created Dataset without pageSize');
     }
@@ -58,8 +58,8 @@ class Allocated extends Idle {
   // State Properties
   get isIdle() { return false; }
 
-  get records() { return this.pages.records; }
-  get length() { return this.records.length; }
+  get records() { return { get: () => null }; }
+  get length() { return 0; }
 
   clear() {
     return new Idle();
@@ -77,14 +77,16 @@ class Allocated extends Idle {
 
 class Pending extends Allocated {
   constructor(previous, attrs) {
-    Object.assign(this, previous, attrs);
+    super(previous, attrs);
     this.pages.requested.forEach((requested) => {
       if (!requested.isPending) {
         this._fetchPage(requested);
       }
     });
-    this.length = this.pages.records.length();
   }
+
+  get records() { return this.pages.records; }
+  get length() { return this.records.length; }
 
   resolve(records, stats, offset){
     let pages = this.pages.resolve(records, stats, offset);
@@ -109,6 +111,7 @@ class Pending extends Allocated {
     return new Allocated(this, { readOffset });
   }
 
+  // TODO: Ember Concurrency Task, do not fetch a page while in flight
   _fetchPage(page) {
     let offset = page.offset;
     let pageSize = this.pageSize;
@@ -120,6 +123,11 @@ class Pending extends Allocated {
       if(page !== this.pages[offset]) { return; }
       this.reject(error, stats, offset);
     });
+  }
+
+  // TODO: Ember Concurrency Task, do not unfetch a page multiple times
+  _unfetchPage(page) {
+    this._unfetch.call(this, page.data, page.offset);
   }
 }
 
