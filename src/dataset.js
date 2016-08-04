@@ -5,7 +5,7 @@ import findIndex from './find-index';
 export default class Idle {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
-      pages: [],
+      pages: null,
       stats: { totalPages: undefined }
     }, previous, attrs);
   }
@@ -25,12 +25,16 @@ export default class Idle {
   get records() { return []; }
   get length() { return 0; }
 
+  clear() {
+    return this;
+  }
+
   init(options) {
-    return new Allocated(this, options);
+    return new Active(this, options);
   }
 }
 
-class Allocated extends Idle {
+class Active extends Idle {
   constructor(previous, attrs) {
     super(previous, attrs);
     if (!this.pageSize) {
@@ -48,18 +52,27 @@ class Allocated extends Idle {
     }
 
     this.unfetch = this.unfetch || function() {};
-    this.pages = new Pages({
+
+    this.pages = this.pages || new Pages({
       pageSize: this.pageSize,
       loadHorizon: this.loadHorizon,
-      unloadHorizon: this.unloadHorizon
+      unloadHorizon: this.unloadHorizon,
+      fetch: this.fetch,
+      observe: function(pages) {
+        this.observe( new Active(this, { pages }) );
+      }.bind(this)
     });
   }
 
   // State Properties
   get isIdle() { return false; }
+  get isPending() { return this.pages.pending.length > 0; }
+  get isResolved() { return !this.isPending && this.pages.resolved.length > 0; }
+  get isRejected() { return !this.isPending && this.pages.rejected.length > 0; }
+  get isSettled()  { return !this.isPending && (this.isRejected || this.isResolved); }
 
-  get records() { return { get: () => null }; }
-  get length() { return 0; }
+  get records() { return this.pages.records; }
+  get length() { return this.records.length; }
 
   clear() {
     return new Idle();
@@ -67,108 +80,11 @@ class Allocated extends Idle {
 
   setReadOffset(readOffset) {
     let pages = this.pages.setReadOffset(readOffset);
-    return new Pending(this, { pages, readOffset });
+
+    return new Active(this, { pages, readOffset });
   }
 
-  unload(readOffset) {
-    return new Allocated(this, { readOffset });
-  }
-}
-
-class Pending extends Allocated {
-  constructor(previous, attrs) {
-    super(previous, attrs);
-    this.pages.requested.forEach((requested) => {
-      if (!requested.isPending) {
-        this._fetchPage(requested);
-      }
-    });
-  }
-
-  get records() { return this.pages.records; }
-  get length() { return this.records.length; }
-
-  resolve(records, stats, offset){
-    let pages = this.pages.resolve(records, stats, offset);
-    return new Resolved(this, { pages, stats });
-  }
-
-  reject(error, stats, offset) {
-    let pages = this.pages.reject(error, stats, offset);
-    return new Rejected(this, { pages, stats });
-  }
-
-  setReadOffset(readOffset) {
-    return super.setReadOffset(readOffset);
-  }
-
-  clear() {
-    return new Idle();
-  }
-
-  unload(readOffset) {
-    this.pages.requested.forEach(requested => this._unfetchPage(requested));
-    return new Allocated(this, { readOffset });
-  }
-
-  // TODO: Ember Concurrency Task, do not fetch a page while in flight
-  _fetchPage(page) {
-    let offset = page.offset;
-    let pageSize = this.pageSize;
-    let stats = {totalPages: this.stats.totalPages };
-    return this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
-      if(page !== this.pages[offset]) { return; }
-      this.resolve(records, stats, offset);
-    }).catch((error = {}) => {
-      if(page !== this.pages[offset]) { return; }
-      this.reject(error, stats, offset);
-    });
-  }
-
-  // TODO: Ember Concurrency Task, do not unfetch a page multiple times
-  _unfetchPage(page) {
-    this._unfetch.call(this, page.data, page.offset);
-  }
-}
-
-class Resolved extends Pending {
-  constructor(previous, attrs) {
-    super(previous, attrs);
-  }
-
-  get isPending() { return false; }
-  get isResolved() { return true; }
-
-  setReadOffset(readOffset) {
-    return super.setReadOffset(readOffset);
-  }
-
-  clear() {
-    return super.clear();
-  }
-
-  unload(readOffset) {
-    return super.unload(readOffset);
-  }
-}
-
-class Rejected extends Pending {
-  constructor(previous, attrs) {
-    super(previous, attrs);
-  }
-
-  get isPending() { return false; }
-  get isRejected() { return true; }
-
-  setReadOffset(readOffset) {
-    return super.setReadOffset(readOffset);
-  }
-
-  clear() {
-    return super.clear();
-  }
-
-  unload(readOffset) {
-    return super.unload(readOffset);
+  unload() {
+    return new Active(this, { pages: undefined }, {readOffset: undefined});
   }
 }

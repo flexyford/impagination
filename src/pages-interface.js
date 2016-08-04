@@ -4,20 +4,18 @@ import Page from './page';
 export default class Pages {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
-      _pages: previous._pages || [],
-      readOffset: previous.readOffset || 0,
-      pageSize: previous.pageSize || 0,
-      loadHorizon: previous.loadHorizon || previous.pageSize || 0,
-      unloadHorizon: previous.unloadHorizon || Infinity,
-      stats: previous.stats || { totalPages: undefined },
-      length: previous.length || 0,
+      _pages: [],
+      length: 0,
+      pageSize: 0,
+      loadHorizon: previous.pageSize || 0,
+      unloadHorizon: Infinity,
+      readOffset: undefined,
+      stats: { totalPages: undefined },
 
       // Consider a Records-Interface in the future
       // Right now is too early to abstract into class
-      records: previous.records || {
-        get: this._getRecord.bind(this)
-      }
-    }, attrs);
+      records: {}
+    }, previous, attrs);
 
     if (!this.pageSize) {
       throw new Error('created Pages without pageSize');
@@ -31,26 +29,33 @@ export default class Pages {
 
     this.length = this._calcLength();
     this.records = Object.assign(this.records, {
+      get: this.getRecord.bind(this),
       length: this._calcRecordsLength()
     });
   }
 
+  get pending() {
+    return this._pages.filter((page) => {
+      return page.isPending;
+    });
+  }
+
   get requested() {
-    return this._pages;
+    return this._pages.filter((page) => {
+      return page.isRequested;
+    });
   }
 
   get resolved() {
-    return this.requested.filter((page) => {
+    return this._pages.filter((page) => {
       return page.isResolved;
     });
   }
 
-  indexOf(page = {}) {
-    if(page.offset) {
-      return page.offset - this._pages[0].offset;
-    } else {
-      return -1;
-    }
+  get rejected() {
+    return this._pages.filter((page) => {
+      return page.isRejected;
+    });
   }
 
   setReadOffset(readOffset) {
@@ -58,9 +63,12 @@ export default class Pages {
   }
 
   resolve(records, stats, offset) {
+    let _pages = this._pages.slice();
     let page = this.get(offset);
     let resolvedPage = page.resolve(records);
-    let _pages = this._pages.slice().splice(page.offset, 1, resolvedPage);
+
+    _pages.splice(page.offset, 1, resolvedPage);
+
     return new Pages(this, { _pages });
   }
 
@@ -73,9 +81,12 @@ export default class Pages {
 
   // Private API
   _calcLength() {
+    let offset = this.readOffset;
+
+    if (offset === null || offset === undefined) return 0;
+
     const baseOffset = this._pages[0] && this._pages[0].offset || 0;
 
-    let offset = this.readOffset;
     let maxLoadPage = Math.ceil((offset + this.loadHorizon) / this.pageSize);
     let maxUnloadPage = Math.ceil((offset + this.unloadHorizon) / this.pageSize);
     let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
@@ -85,38 +96,35 @@ export default class Pages {
   }
 
   _calcRecordsLength() {
-    let recordsLength = this.length * this.pageSize;
-    this.resolved.forEach((page) => {
-      recordsLength -= this.pageSize - page.records.length;
-    });
-    return recordsLength;
-  }
-
-  _pageOffset(page = {}) {
-    return page && page.offset;
+    return this.resolved.reduce((length, page) => {
+      return length - (this.pageSize - page.records.length);
+    }, this.length * this.pageSize);
   }
 
   get(pageOffset) {
-    const baseOffset = this._pages[0] && this._pages[0].offset || 0;
-    const firstPageOffset = this._pages[0] && this._pages[0].offset;
-    const lastPageOffset = this._pages[this._pages.length - 1] && this._pages[this._pages.length - 1].offset;
+    const firstRequestedPage = this.requested[0];
+    const lastRequestedPage = this.requested[this.requested.length - 1];
 
-    if(pageOffset >= firstPageOffset && pageOffset <= lastPageOffset) {
-      console.log('returns an existing page');
-      console.log('pageOffset baseOffset', pageOffset, baseOffset);
-      return this._pages[pageOffset - baseOffset];
+    const pageIsRequested = this.requested.length &&
+            pageOffset >= firstRequestedPage.offset &&
+            pageOffset <= lastRequestedPage.offset;
+
+    if (pageIsRequested) {
+      return this.requested[pageOffset - firstRequestedPage.offset];
     } else {
       return new Page(pageOffset, this.pageSize);
     }
   }
 
-  _getRecord(index) {
+  getRecord(index) {
     if(index >= this.records.length) return null;
 
     const pageIndex = Math.floor(index / this.pageSize);
     const firstResolvedPage = this.resolved && this.resolved[0];
 
-    if (!firstResolvedPage || pageIndex < firstResolvedPage.offset) {
+    const recordIsUnresolved = !firstResolvedPage || pageIndex < firstResolvedPage.offset;
+
+    if (recordIsUnresolved) {
       const currentPage = this.get(pageIndex);
       const recordIndex = index % this.pageSize;
 
@@ -125,13 +133,11 @@ export default class Pages {
       let currentPage = firstResolvedPage;
       let recordIndex = index - (currentPage.offset * this.pageSize);
 
-      console.log(currentPage);
-
       while(recordIndex >= currentPage.records.length) {
         recordIndex -= currentPage.records.length;
         currentPage = this.get(currentPage.offset + 1);
-        console.log(currentPage);
       }
+
 
       return currentPage.records[recordIndex];
     }
@@ -142,8 +148,8 @@ export default class Pages {
   }
 
   _unloadHorizons(pages) {
-    let unloadedPages = pages && pages.slice() || this._pages.slice();
-    const baseOffset = unloadedPages[0] && unloadedPages[0].offset || 0;
+    pages = pages && pages.slice() || this.requested.slice();
+    const baseOffset = pages[0] && pages[0].offset || 0;
 
     let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize) - baseOffset;
     let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize) - baseOffset;
@@ -151,27 +157,28 @@ export default class Pages {
     let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this._pages.length) - baseOffset;
 
     // Unload Pages outside the upper `unloadHorizons`
-    for (let i = unloadedPages.length - 1; i >= maxUnloadHorizon; i -= 1) {
-      let page = unloadedPages[i];
+    for (let i = pages.length - 1; i >= maxUnloadHorizon; i -= 1) {
+      let page = pages[i];
       if (page.isRequested) {
-        unloadedPages.splice(page.offset, 1);
+        pages.splice(page.offset, 1);
       }
     }
 
     // Unload Pages outside the lower `unloadHorizons`
     for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
-      let page = unloadedPages[i];
+      let page = pages[i];
       if (page && page.isRequested) {
-        unloadedPages.splice(page.offset, 1);
+        pages.splice(page.offset, 1);
+        // this.unfetch(page);
       }
     }
 
-    return unloadedPages;
+    return pages;
   }
 
   _requestHorizons(pages) {
-    let requestedPages = pages && pages.slice() || this._pages.slice();
-    const baseOffset = requestedPages[0] && requestedPages[0].offset || 0;
+    pages = pages && pages.slice() || this.requested.slice();
+    const baseOffset = pages[0] && pages[0].offset || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
     let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
@@ -180,13 +187,36 @@ export default class Pages {
 
     // Request and Fetch Records within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-      let page = requestedPages[i] || new Page(i + baseOffset, this.pageSize);
+      let page = pages[i] || new Page(i + baseOffset, this.pageSize);
       if (!page.isRequested) {
-        let requestedPage = page.request();
-        requestedPages.splice(page.offset, 1, requestedPage);
+        const requested = page.request();
+
+        if (this.fetch) this._fetchPage(requested);
+
+        pages.splice(page.offset, 1, requested);
       }
     }
 
-    return requestedPages;
+    return pages;
+  }
+
+  _fetchPage(page) {
+    let offset = page.offset;
+    let pageSize = this.pageSize;
+    let stats = {totalPages: this.stats.totalPages };
+
+    this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
+      // TODO: Figure out a way to return if the dataset
+      // has been cleared, out-of-sync, etc.
+      // The check below does not work . . .
+      // if (page !== this.pages.get(offset)) return this.pages;
+      return this.resolve(records, stats, offset);
+    }).catch((error = {}) => {
+      if (page !== this.pages.get(offset)) return this;
+      return this.pages.reject(error, stats, offset);
+    }).then((pages) => {
+      // TODO: Implement observe on pages
+      this.observe(pages);
+    });
   }
 }
