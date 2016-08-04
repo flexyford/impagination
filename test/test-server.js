@@ -48,6 +48,11 @@ export class Server {
     return unfetchedPage;
   }
 
+  resolve(requestIndex) {
+    this.requests[requestIndex].resolve();
+    return Promise.resolve(this.requests[requestIndex]);
+  }
+
   /**
    * Resolve all requests that this server knows about, and return a
    * promise that can be used to synchronize the test case until all

@@ -6,7 +6,7 @@ import { Server, PageRequest } from './test-server';
 
 
 describe("Dataset", function() {
-  describe.skip("initializing a new dataset", function() {
+  describe("initializing a new dataset", function() {
     beforeEach(function() {
       this.dataset = new Dataset();
     });
@@ -27,7 +27,7 @@ describe("Dataset", function() {
     });
   });
 
-  describe.skip("initializing a new dataset", function() {
+  describe("initializing a new dataset", function() {
     it("cannot be instantiated without pageSize", function() {
       var err = "";
       try {
@@ -164,14 +164,9 @@ describe("Dataset", function() {
       });
     });
 
-    describe.skip("resolving a fetch request", function() {
-      beforeEach(function(done) {
-        let records = Array.from(Array(10)).map((_, i)=> {
-          return {name: `Record ${i}`};
-        });
-        let request = this.requests[0];
-        let finish = ()=> done();
-        return request.resolve(records).then(finish).catch(finish);
+    describe("resolving a fetch request", function() {
+      beforeEach(function() {
+        return this.server.resolve(0);
       });
       it("transitions to a new Resolved state", function() {
         expect(this.dataset).not.to.equal(this.initialDataset);
@@ -179,7 +174,7 @@ describe("Dataset", function() {
       });
       it("resolves records", function () {
         expect(this.dataset.length).to.equal(10);
-        var record = this.dataset.get(0);
+        var record = this.dataset.records.get(0);
         expect(record.isResolved).to.be.true;
         expect(record.content.name).to.equal("Record 0");
       });
