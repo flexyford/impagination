@@ -1,7 +1,7 @@
 import Page from './page';
 
 // Unrequested Pages do not show up in Pages Interface
-export default class Pages {
+class Pages {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
       _pages: [],
@@ -28,9 +28,13 @@ export default class Pages {
     this._pages = this._updateHorizons();
 
     this.length = this._calcLength();
+
     this.records = Object.assign(this.records, {
+      pages: this,
       get: this.getRecord.bind(this),
-      length: this._calcRecordsLength()
+      get length() {
+        return this.pages._calcRecordsLength();
+      }
     });
   }
 
@@ -73,9 +77,12 @@ export default class Pages {
   }
 
   reject(error, stats, offset) {
+    let _pages = this._pages.slice();
     let page = this.get(offset);
     let rejectedPage = page.reject(error);
-    let _pages = this._pages.slice().splice(page.offset, 1, rejectedPage);
+
+    _pages.splice(page.offset, 1, rejectedPage);
+
     return new Pages(this, { _pages });
   }
 
@@ -209,14 +216,97 @@ export default class Pages {
       // TODO: Figure out a way to return if the dataset
       // has been cleared, out-of-sync, etc.
       // The check below does not work . . .
-      // if (page !== this.pages.get(offset)) return this.pages;
+      // if (page !== this.pages.get(offset)) return this;
       return this.resolve(records, stats, offset);
     }).catch((error = {}) => {
-      if (page !== this.pages.get(offset)) return this;
-      return this.pages.reject(error, stats, offset);
+      // TODO: Figure out a way to return if the dataset
+      // has been cleared, out-of-sync, etc.
+      // The check below does not work . . .
+      // if (page !== this.pages.get(offset)) return this;
+      return this.reject(error, stats, offset);
     }).then((pages) => {
       // TODO: Implement observe on pages
       this.observe(pages);
     });
   }
 }
+
+export default class Observable {
+  constructor(attrs = {}) {
+    this.observe = attrs.observe || function() {};
+
+    let options = Object.assign({}, attrs.options, {
+      observe: (next) => {
+        this.observe(next, this.current);
+        this.current = next;
+      }
+    });
+
+    this.current = attrs.current || new Pages(options);
+
+    let stateMethods = ['setReadOffset'];
+    // Assign Immutable State Methods
+    Object.assign(this, stateMethods.reduce((methods, method)=> {
+      let observable = this;
+      return Object.assign(methods, {
+        [method]: function(args) {
+          return observable.send(method, args);
+        }
+      });
+    }, {}));
+  }
+
+  get() {
+    return this.current.get(...arguments);
+  }
+
+  get pending() {
+    return this.current.pending;
+  }
+
+  get requested() {
+    return this.current.requested;
+  }
+
+  get resolved() {
+    return this.current.resolved;
+  }
+
+  get rejected() {
+    return this.current.rejected;
+  }
+
+  get length() {
+    return this.current.length;
+  }
+
+  get pageSize() {
+    return this.current.pageSize;
+  }
+
+  get loadHorizon() {
+    return this.current.loadHorizon;
+  }
+
+  get unloadHorizon() {
+    return this.current.unloadHorizon;
+  }
+
+  get readOffset() {
+    return this.current.readOffset;
+  }
+
+  get stats() {
+    return this.current.stats;
+  }
+
+  get records() {
+    return this.current.records;
+  }
+
+  send(method, ...args) {
+    let next = this.current[method].apply(this.current, args);
+    this.observe(next, this.current);
+    this.current = next;
+  }
+};

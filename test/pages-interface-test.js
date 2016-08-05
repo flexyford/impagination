@@ -2,6 +2,7 @@ import PagesInterface from '../src/pages-interface';
 
 import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
+import { Server, PageRequest } from './test-server';
 
 describe("Pages Interface", function() {
   describe("instantiating pages", function() {
@@ -13,14 +14,20 @@ describe("Pages Interface", function() {
 
     it("cannot be instantiated with unloadHorizon less than loadHorizon", function () {
       var err = "";
-      try { new PagesInterface({ pageSize: 1, loadHorizon: 5, unloadHorizon: 1 }); } catch(e) { err = e; }
+      try { new PagesInterface({
+        options: {
+          pageSize: 1, loadHorizon: 5, unloadHorizon: 1
+        }
+      }); } catch(e) { err = e; }
       expect(err).to.match(/unloadHorizon less than loadHorizon/);
     });
 
     describe("with default constructor values", function() {
       beforeEach(function() {
         this.pages = new PagesInterface({
-          pageSize: 10
+          options: {
+            pageSize: 10
+          }
         });
       });
       it("has default constructor values", function() {
@@ -38,10 +45,10 @@ describe("Pages Interface", function() {
 
       describe("setting the read offset", function() {
         beforeEach(function() {
-          this.pages = this.pages.setReadOffset(0);
+          this.pages.setReadOffset(0);
         });
 
-        it("does not request pages", function() {
+        it("requests a page", function() {
           expect(this.pages.length).to.equal(1);
           expect(this.pages.requested.length).to.equal(1);
           expect(this.pages.records.length).to.equal(10);
@@ -62,7 +69,7 @@ describe("Pages Interface", function() {
 
       describe("advancing the read offset", function() {
         beforeEach(function() {
-          this.pages = this.pages.setReadOffset(35);
+          this.pages.setReadOffset(35);
         });
 
         it("requests another page of records", function() {
@@ -76,10 +83,13 @@ describe("Pages Interface", function() {
     describe("with an unload horizon", function() {
       beforeEach(function() {
         this.pages = new PagesInterface({
-          pageSize: 10,
-          loadHorizon: 10,
-          unloadHorizon: 10
-        }).setReadOffset(0);
+          options: {
+            pageSize: 10,
+            loadHorizon: 10,
+            unloadHorizon: 10
+          }
+        });
+        this.pages.setReadOffset(0);
       });
       it("has default constructor values", function() {
         expect(this.pages.pageSize).to.equal(10);
@@ -96,7 +106,7 @@ describe("Pages Interface", function() {
 
       describe("advancing the read offset", function() {
         beforeEach(function() {
-          this.pages = this.pages.setReadOffset(35);
+          this.pages.setReadOffset(35);
         });
 
         it("requests more pages of records", function() {
@@ -110,9 +120,12 @@ describe("Pages Interface", function() {
     describe("with stats", function() {
       beforeEach(function() {
         this.pages = new PagesInterface({
-          pageSize: 10,
-          stats: { totalPages: 10 }
-        }).setReadOffset(0);
+          options: {
+            pageSize: 10,
+            stats: { totalPages: 10 }
+          }
+        });
+        this.pages.setReadOffset(0);
       });
       it("has default constructor values", function() {
         expect(this.pages.pageSize).to.equal(10);
@@ -123,6 +136,36 @@ describe("Pages Interface", function() {
         expect(this.pages.length).to.equal(10);
         expect(this.pages.requested.length).to.equal(1);
         expect(this.pages.records.length).to.equal(100);
+      });
+    });
+    describe("resolving a requested page", function() {
+      beforeEach(function() {
+        this.server = new Server();
+        this.requests = this.server.requests;
+        this.pages = new PagesInterface({
+          options: {
+            pageSize: 10,
+            fetch: (pageOffset, pageSize, stats)=> {
+              return this.server.request(pageOffset, pageSize, stats);
+            }
+          }
+        });
+        this.pages.setReadOffset(0);
+        return this.server.resolveAll();
+      });
+      it("has a resolved page", function() {
+        expect(this.pages.length).to.equal(1);
+        let page = this.pages.get(0);
+
+        expect(page.isResolved).to.be.true;
+        expect(this.pages.resolved.length).to.equal(1);
+      });
+      it("resolves records", function () {
+        expect(this.pages.records.length).to.equal(10);
+
+        let record = this.pages.records.get(0);
+        expect(record.isResolved).to.be.true;
+        expect(record.content.name).to.equal("Record 0");
       });
     });
   });
