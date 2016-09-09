@@ -1,7 +1,7 @@
 import Page from './page';
 
 // Unrequested Pages do not show up in Pages Interface
-class Pages {
+export default class Pages {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
       _pages: [],
@@ -25,9 +25,9 @@ class Pages {
       throw new Error('created Pages with unloadHorizon less than loadHorizon');
     }
 
-    this._pages = this._updateHorizons();
+    this._updateHorizons();
 
-    this.length = this._calcLength();
+    this._updateLength();
 
     this.records = Object.assign(this.records, {
       pages: this,
@@ -38,9 +38,31 @@ class Pages {
     });
   }
 
+  // fetchable
+  get unrequested() {
+    return this._pages.filter((page) => {
+      return !page.isRequested;
+    });
+  }
+
+  // fetching
   get pending() {
     return this._pages.filter((page) => {
       return page.isPending;
+    });
+  }
+
+  // fetched
+  get resolved() {
+    return this._pages.filter((page) => {
+      return page.isResolved;
+    });
+  }
+
+  // fetched
+  get rejected() {
+    return this._pages.filter((page) => {
+      return page.isRejected;
     });
   }
 
@@ -50,44 +72,43 @@ class Pages {
     });
   }
 
-  get resolved() {
-    return this._pages.filter((page) => {
-      return page.isResolved;
-    });
-  }
-
-  get rejected() {
-    return this._pages.filter((page) => {
-      return page.isRejected;
-    });
-  }
-
   setReadOffset(readOffset) {
     return new Pages(this, { readOffset });
   }
 
-  resolve(records, stats, offset) {
-    let _pages = this._pages.slice();
+  fetch(offset) {
     let page = this.get(offset);
-    let resolvedPage = page.resolve(records);
 
-    _pages.splice(page.offset, 1, resolvedPage);
-
-    return new Pages(this, { _pages });
+    if (!page.isRequested) {
+      return new Pages(this, {
+        _pages: this._pages.map(p => p === page ? p.request() : p)
+      });
+    }
+    return this;
   }
 
-  reject(error, stats, offset) {
-    let _pages = this._pages.slice();
+  // TODO: Do we resolve with the page offset? Or can we just pass in the page?
+  resolve(records, offset, stats) {
     let page = this.get(offset);
-    let rejectedPage = page.reject(error);
 
-    _pages.splice(page.offset, 1, rejectedPage);
+    return new Pages(this, {
+      _pages: this._pages.map(p => p === page ? p.resolve(records) : p),
+      stats: stats || this.stats
+    });
+  }
 
-    return new Pages(this, { _pages });
+  // TODO: Do we reject with the page offset? Or can we just pass in the page?
+  reject(error, offset, stats) {
+    let page = this.get(offset);
+
+    return new Pages(this, {
+      _pages: this._pages.map(p => p === page ? p.reject(error) : p),
+      stats: stats || this.stats
+    });
   }
 
   // Private API
-  _calcLength() {
+  _updateLength() {
     let offset = this.readOffset;
 
     if (offset === null || offset === undefined) return 0;
@@ -99,7 +120,7 @@ class Pages {
     let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
     let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.length);
 
-    return Math.max(this._pages.length + baseOffset, maxLoadHorizon, this.stats.totalPages || 0);
+    this.length = Math.max(this._pages.length + baseOffset, maxLoadHorizon, this.stats.totalPages || 0);
   }
 
   _calcRecordsLength() {
@@ -109,15 +130,15 @@ class Pages {
   }
 
   get(pageOffset) {
-    const firstRequestedPage = this.requested[0];
-    const lastRequestedPage = this.requested[this.requested.length - 1];
+    const firstPage = this._pages[0];
+    const lastPage = this._pages[this._pages.length - 1];
 
-    const pageIsRequested = this.requested.length &&
-            pageOffset >= firstRequestedPage.offset &&
-            pageOffset <= lastRequestedPage.offset;
+    const pageExists = this._pages.length &&
+            pageOffset >= firstPage.offset &&
+            pageOffset <= lastPage.offset;
 
-    if (pageIsRequested) {
-      return this.requested[pageOffset - firstRequestedPage.offset];
+    if (pageExists) {
+      return this._pages[pageOffset - firstPage.offset];
     } else {
       return new Page(pageOffset, this.pageSize);
     }
@@ -151,11 +172,12 @@ class Pages {
   }
 
   _updateHorizons() {
-    return this._requestHorizons(this._unloadHorizons());
+    this._unloadHorizons();
+    this._requestHorizons();
   }
 
-  _unloadHorizons(pages) {
-    pages = pages && pages.slice() || this.requested.slice();
+  _unloadHorizons() {
+    let pages = this._pages;
     const baseOffset = pages[0] && pages[0].offset || 0;
 
     let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize) - baseOffset;
@@ -166,7 +188,7 @@ class Pages {
     // Unload Pages outside the upper `unloadHorizons`
     for (let i = pages.length - 1; i >= maxUnloadHorizon; i -= 1) {
       let page = pages[i];
-      if (page.isRequested) {
+      if (page) {
         pages.splice(page.offset, 1);
       }
     }
@@ -174,17 +196,14 @@ class Pages {
     // Unload Pages outside the lower `unloadHorizons`
     for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
       let page = pages[i];
-      if (page && page.isRequested) {
+      if (page) {
         pages.splice(page.offset, 1);
-        // this.unfetch(page);
       }
     }
-
-    return pages;
   }
 
-  _requestHorizons(pages) {
-    pages = pages && pages.slice() || this.requested.slice();
+  _requestHorizons() {
+    let pages = this._pages;
     const baseOffset = pages[0] && pages[0].offset || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
@@ -194,119 +213,33 @@ class Pages {
 
     // Request and Fetch Records within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-      let page = pages[i] || new Page(i + baseOffset, this.pageSize);
-      if (!page.isRequested) {
-        const requested = page.request();
-
-        if (this.fetch) this._fetchPage(requested);
-
-        pages.splice(page.offset, 1, requested);
+      if (!pages[i]) {
+        let unrequested = new Page(i + baseOffset, this.pageSize);
+        pages.splice(unrequested.offset, 1, unrequested);
       }
     }
-
-    return pages;
   }
 
-  _fetchPage(page) {
-    let offset = page.offset;
-    let pageSize = this.pageSize;
-    let stats = {totalPages: this.stats.totalPages };
+  // _fetchPage(page) {
+  //   let offset = page.offset;
+  //   let pageSize = this.pageSize;
+  //   let stats = {totalPages: this.stats.totalPages };
 
-    this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
-      // TODO: Figure out a way to return if the dataset
-      // has been cleared, out-of-sync, etc.
-      // The check below does not work . . .
-      // if (page !== this.pages.get(offset)) return this;
-      return this.resolve(records, stats, offset);
-    }).catch((error = {}) => {
-      // TODO: Figure out a way to return if the dataset
-      // has been cleared, out-of-sync, etc.
-      // The check below does not work . . .
-      // if (page !== this.pages.get(offset)) return this;
-      return this.reject(error, stats, offset);
-    }).then((pages) => {
-      // TODO: Implement observe on pages
-      this.observe(pages);
-    });
-  }
+  //   this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
+  //     // TODO: Figure out a way to return if the dataset
+  //     // has been cleared, out-of-sync, etc.
+  //     // The check below does not work . . .
+  //     // if (page !== this.pages.get(offset)) return this;
+  //     return this.resolve(records, stats, offset);
+  //   }).catch((error = {}) => {
+  //     // TODO: Figure out a way to return if the dataset
+  //     // has been cleared, out-of-sync, etc.
+  //     // The check below does not work . . .
+  //     // if (page !== this.pages.get(offset)) return this;
+  //     return this.reject(error, stats, offset);
+  //   }).then((pages) => {
+  //     // TODO: Implement observe on pages
+  //     this.observe(pages);
+  //   });
+  // }
 }
-
-export default class Observable {
-  constructor(attrs = {}) {
-    this.observe = attrs.observe || function() {};
-
-    let options = Object.assign({}, attrs.options, {
-      observe: (next) => {
-        this.observe(next, this.current);
-        this.current = next;
-      }
-    });
-
-    this.current = attrs.current || new Pages(options);
-
-    let stateMethods = ['setReadOffset'];
-    // Assign Immutable State Methods
-    Object.assign(this, stateMethods.reduce((methods, method)=> {
-      let observable = this;
-      return Object.assign(methods, {
-        [method]: function(args) {
-          return observable.send(method, args);
-        }
-      });
-    }, {}));
-  }
-
-  get() {
-    return this.current.get(...arguments);
-  }
-
-  get pending() {
-    return this.current.pending;
-  }
-
-  get requested() {
-    return this.current.requested;
-  }
-
-  get resolved() {
-    return this.current.resolved;
-  }
-
-  get rejected() {
-    return this.current.rejected;
-  }
-
-  get length() {
-    return this.current.length;
-  }
-
-  get pageSize() {
-    return this.current.pageSize;
-  }
-
-  get loadHorizon() {
-    return this.current.loadHorizon;
-  }
-
-  get unloadHorizon() {
-    return this.current.unloadHorizon;
-  }
-
-  get readOffset() {
-    return this.current.readOffset;
-  }
-
-  get stats() {
-    return this.current.stats;
-  }
-
-  get records() {
-    return this.current.records;
-  }
-
-  send(method, ...args) {
-    let next = this.current[method].apply(this.current, args);
-    this.observe(next, this.current);
-    this.current = next;
-  }
-};

@@ -88,9 +88,7 @@ export class PageRequest {
   }
 
   resolve() {
-    let records = Array.from(Array(this.size), (_, i)=> {
-      return {name: `Record ${this.offset * this.size + i}`};
-    });
+    let records = createRecords(this.size, this.offset);
     this._resolve(records);
     return this;
   }
@@ -99,4 +97,10 @@ export class PageRequest {
     this._reject.apply(null, arguments);
     return this;
   }
+}
+
+export function createRecords(size, offset = 0) {
+  return Array.from(Array(size), (_, i)=> {
+    return {name: `Record ${offset * size + i}`};
+  });
 }
