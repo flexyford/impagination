@@ -4,56 +4,32 @@ import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
 import { Server, PageRequest } from './test-server';
 
-
-describe.skip("Dataset", function() {
+describe("Dataset", function() {
   describe("initializing a new dataset", function() {
-    beforeEach(function() {
-      this.dataset = new Dataset();
-    });
-
-    it("initializes the state", function() {
-      expect(this.dataset.isIdle).to.be.true;
-      expect(this.dataset.isAllocated).to.be.false;
-      expect(this.dataset.isPending).to.be.false;
-      expect(this.dataset.isResolved).to.be.false;
-      expect(this.dataset.isRejected).to.be.false;
-      expect(this.dataset.isSettled).to.be.false;
-    });
-
-    it("initializes the state attributes", function() {
-      expect(this.dataset.length).to.equal(0);
-      expect(this.dataset.pages).to.equal(null);
-      expect(this.dataset.stats).to.exist;
-    });
-  });
-
-  describe("initializing a new dataset", function() {
-    beforeEach(function() {
-      this.dataset = new Dataset();
-    });
-
     it("cannot be instantiated without pageSize", function() {
       var err = "";
       try {
-        this.dataset.init();
+        new Dataset();
       } catch(e) { err = e; }
       expect(err).to.match(/without pageSize/);
     });
+
     it("cannot be instantiated without fetch()", function () {
       var err = "";
       try {
-        this.dataset.init({
+        new Dataset({
           pageSize: 1
         });
       } catch(e) { err = e; }
       expect(err).to.match(/without fetch/);
     });
+
     it("cannot be instantiated with unloadHorizon less than loadHorizon", function () {
       var err = "";
       try {
-        this.dataset.init({
+        new Dataset({
           pageSize: 1,
-          fetch: ()=>{},
+          fetch: () => {},
           loadHorizon: 5,
           unloadHorizon: 1
         });
@@ -61,78 +37,109 @@ describe.skip("Dataset", function() {
       expect(err).to.match(/unloadHorizon less than loadHorizon/);
     });
 
-    describe("with default constructor values", function() {
-      beforeEach(function() {
-        this.server = new Server();
-        this.requests = this.server.requests;
-      });
-      beforeEach(function() {
-        this.dataset.init({
-          pageSize: 10,
-          fetch: (pageOffset, pageSize, stats)=> {
-            return this.server.request(pageOffset, pageSize, stats);
-          }
+    it("requires pagesize and fetch function", function() {
+      var err = "";
+      try {
+        new Dataset({
+          pageSize: 1,
+          fetch: () => {}
         });
+      } catch(e) { err = e; }
+      expect(err).to.equal('');
+    });
+  });
+
+  describe("observing pages", function() {
+    let dataset, requests, server, store, unfetched;
+
+    let fetch = (pageOffset, pageSize, stats) => {
+      return server.request(pageOffset, pageSize, stats);
+    };
+
+    let unfetch =  (records, pageOffset)=> {
+      unfetched = requests[pageOffset];
+    };
+
+    let observe =  (_pages) => {
+      store = _pages;
+    };
+
+    beforeEach(function() {
+      store = {};
+      unfetched = {};
+
+      server = new Server();
+      requests = server.requests;
+
+      dataset = new Dataset({
+        pageSize: 10,
+        fetch, unfetch, observe
       });
-      it("has default constructor values", function() {
-        expect(this.dataset.pageSize).to.equal(10);
-        expect(this.dataset.current.fetch).to.be.instanceOf(Function);
-        expect(this.dataset.current.unfetch).to.be.instanceOf(Function);
+    });
+
+    it("creates an observable dataset", function() {
+      let record = store.getRecord(0);
+      expect(store.length).to.equal(0);
+      expect(record.content).to.equal(null);
+    });
+
+    it("does not fetch a page", function() {
+      expect(requests.length).to.equal(0);
+    });
+
+    describe("setting the read offset", function() {
+      beforeEach(function() {
+        dataset = dataset.setReadOffset(0);
       });
 
-      it("initializes the state", function() {
-        expect(this.dataset.isIdle).to.be.false;
-        expect(this.dataset.isAllocated).to.be.true;
-        expect(this.dataset.isPending).to.be.false;
-        expect(this.dataset.isResolved).to.be.false;
-        expect(this.dataset.isRejected).to.be.false;
-        expect(this.dataset.isSettled).to.be.false;
+      it("requests pages", function() {
+        expect(requests.length).to.equal(1);
+        expect(store.requested.length).to.equal(1);
+        expect(store.readOffset).to.equal(0);
+        expect(store.length).to.equal(10);
       });
 
-      it("initializes the state attributes", function() {
-        expect(this.dataset).to.be.instanceOf(Object);
-        expect(this.dataset.length).to.equal(0);
-        expect(this.dataset.loadHorizon).to.equal(10);
-        expect(this.dataset.unloadHorizon).to.equal(Infinity);
-      });
-
-      it("does not fetch a page", function() {
-        expect(this.server.requests.length).to.equal(0);
-      });
-
-      it("does not have any records", function() {
-        let record = this.dataset.records.get(0);
-        expect(record).to.equal(null);
-      });
-
-      describe("fetching a page", function() {
+      describe("resolving a page", function() {
         beforeEach(function() {
-          this.dataset.setReadOffset(0);
+          let page = store.requested[0];
+          return server.resolve(page.offset);
         });
-        it("fetches a page of records", function() {
-          expect(this.server.requests.length).to.equal(1);
-          expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
-          expect(this.dataset.length).to.equal(10);
-        });
-        it("returns a pending state", function() {
-          let page = this.dataset.pages.get(0);
-          expect(this.dataset.isPending).to.be.true;
-        });
-        it("fetches a set of empty Pending records", function() {
-          let record = this.dataset.records.get(0);
 
-          expect(record.index).to.equal(0);
-          expect(record.isRequested).to.be.true;
-          expect(record.isPending).to.be.true;
-          expect(record.isResolved).to.be.false;
-          expect(record.isRejected).to.be.false;
+        it("resolves the page", function() {
+          expect(store.resolved.length).to.equal(1);
+
+          let name = store.getRecord(0).content.name;
+          expect(name).to.equal('Record 0');
+        });
+      });
+
+      describe("rejecting a page", function() {
+        beforeEach(function(done) {
+          let page = store.requested[0];
+          let finish = ()=> done();
+          return server.reject(page.offset).then(finish).catch(finish);
+        });
+
+        it("rejects the page", function() {
+          expect(store.rejected.length).to.equal(1);
+          expect(store.totalPages).to.equal(1);
+        });
+
+        it("does not have any records", function() {
+          let record = store.getRecord(0);
+          expect(store.length).to.equal(0);
           expect(record.content).to.equal(null);
-          expect(record.page.offset).to.equal(0);
         });
       });
     });
   });
+});
 
+
+
+// TODO: These are the remaining tests
+// To migrate to the new dataset-tests
+describe.skip("Dataset", function() {
   describe("immutable states", function() {
     beforeEach(function() {
       this.server = new Server();
@@ -281,7 +288,6 @@ describe.skip("Dataset", function() {
             return this.server.resolveAll();
           });
           it("has two resolved pages", function() {
-            console.log("this.recordAtPage(0).isResolved = ", this.recordAtPage(0).isResolved);
             expect(this.recordAtPage(0).isResolved).to.be.true;
             // expect(this.recordAtPage(1).isResolved).to.be.true;
             // expect(this.recordAtPage(2)).to.be.empty;

@@ -42,15 +42,12 @@ export class Server {
     return this.requests[pageOffset] = new PageRequest(pageOffset, pageSize, stats);
   }
 
-  remove(records, pageOffset) {
-    let  unfetchedPage = this.requests[pageOffset];
-    delete this.requests[pageOffset];
-    return unfetchedPage;
+  resolve(requestIndex) {
+    return Promise.resolve(this.requests[requestIndex].resolve());
   }
 
-  resolve(requestIndex) {
-    this.requests[requestIndex].resolve();
-    return Promise.resolve(this.requests[requestIndex]);
+  reject(requestIndex) {
+    return Promise.reject(this.requests[requestIndex].reject());
   }
 
   /**
@@ -61,6 +58,11 @@ export class Server {
    */
   resolveAll() {
     this.requests.forEach((request) => request.resolve());
+    return Promise.all(this.requests);
+  }
+
+  rejectAll() {
+    this.requests.forEach((request) => request.reject());
     return Promise.all(this.requests);
   }
 }
@@ -94,7 +96,7 @@ export class PageRequest {
   }
 
   reject() {
-    this._reject.apply(null, arguments);
+    this._reject('404');
     return this;
   }
 }
