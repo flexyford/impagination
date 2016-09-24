@@ -8,6 +8,7 @@ describe("Pages Interface Store ", function() {
   function expectPages(store, expected = {}) {
     expected = Object.assign({
       unrequested: 0,
+      unfetchable: 0,
       pending: 0,
       resolved: 0,
       rejected: 0
@@ -18,6 +19,7 @@ describe("Pages Interface Store ", function() {
 
     expect(store.totalPages).to.equal(numPages);
     expect(store.requested.length).to.equal(numRequestedPages);
+    expect(store.unfetchable.length).to.equal(expected.unfetchable);
     expect(store.unrequested.length).to.equal(expected.unrequested);
     expect(store.pending.length).to.equal(expected.pending);
     expect(store.resolved.length).to.equal(expected.resolved);
@@ -115,7 +117,7 @@ describe("Pages Interface Store ", function() {
           beforeEach(function() {
             // TODO: Explore better syntax
             store.unrequested.forEach((unrequestedPage) => {
-              store = store.fetch(unrequestedPage.offset);
+              store = store.fetch(unrequestedPage);
             });
           });
 
@@ -154,7 +156,7 @@ describe("Pages Interface Store ", function() {
             beforeEach(function() {
               store.pending.forEach((pendingPage) => {
                 let records = createRecords(store.pageSize, pendingPage.offset);
-                store = store.resolve(records, pendingPage.offset);
+                store = store.resolve(records, pendingPage);
               });
             });
 
@@ -178,7 +180,7 @@ describe("Pages Interface Store ", function() {
           describe("rejecting pages", function() {
             beforeEach(function() {
               store.pending.forEach((pendingPage) => {
-                store = store.reject("404", pendingPage.offset);
+                store = store.reject("404", pendingPage);
               });
             });
 
@@ -214,8 +216,9 @@ describe("Pages Interface Store ", function() {
       describe("fetching all unrequested pages", function() {
         beforeEach(function() {
           // TODO: Explore better syntax
+          // store = store.bulkFetch(store.unrequested);
           store.unrequested.forEach((unrequestedPage) => {
-            store = store.fetch(unrequestedPage.offset);
+            store = store.fetch(unrequestedPage);
           });
         });
 
@@ -237,7 +240,7 @@ describe("Pages Interface Store ", function() {
           beforeEach(function() {
             store.pending.forEach((pendingPage) => {
               let records = createRecords(store.pageSize, pendingPage.offset);
-              store = store.resolve(records, pendingPage.offset);
+              store = store.resolve(records, pendingPage);
             });
           });
 
@@ -251,8 +254,23 @@ describe("Pages Interface Store ", function() {
             });
 
             it("unloads the resolved page and generates new Unrequested pages", function() {
-              expectPages(store, { unrequested: 3, resolved: 0 });
+              expectPages(store, { unrequested: 3, unfetchable: 1, resolved: 0 });
             });
+
+            describe("unfetching all unfetchable pages", function() {
+              beforeEach(function() {
+                // TODO: Explore better syntax
+                // store = store.bulkUnfetch(store.unfetchable);
+                store.unfetchable.forEach((unfetchablePage) => {
+                  store = store.unfetch(unfetchablePage);
+                });
+              });
+
+              it("unfetches pages", function() {
+                expect(store.unfetchable.length).to.equal(0);
+              });
+            });
+
           });
         });
       });

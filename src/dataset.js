@@ -28,12 +28,19 @@ export default class Dataset {
     readOffset = Number(readOffset);
 
     if(readOffset !== this.readOffset) {
+      let requested = [];
       this.pages = this.pages.setReadOffset(readOffset);
 
-      this.pages.unrequested.forEach((unrequestedPage) => {
-        this.pages = this.pages.fetch(unrequestedPage.offset);
-        this._fetchPage(unrequestedPage);
+      // Request all Unrequested Pages
+      this.pages.unrequested.forEach((unrequested) => {
+        this.pages = this.pages.fetch(unrequested);
+        requested.push(unrequested.offset);
       });
+
+      // Fetch the recently Requested Pages
+      this.pages.pending
+        .filter(pending => requested.includes(pending.offset))
+        .forEach(page => this._fetchPage(page));
 
       this.observe(this.pages);
     }
@@ -76,9 +83,9 @@ export default class Dataset {
     let stats = this.pages.stats;
 
     this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
-      this.observe(this.pages = this.pages.resolve(records, offset, stats));
+      this.observe(this.pages = this.pages.resolve(records, page, stats));
     }).catch((error = {}) => {
-      this.observe(this.pages = this.pages.reject(error, offset, stats));
+      this.observe(this.pages = this.pages.reject(error, page, stats));
     });
   }
 };

@@ -5,6 +5,7 @@ export default class Store {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
       _pages: [],
+      _unfetchablePages: [],
       length: 0,
       pageSize: 0,
       loadHorizon: previous.pageSize || 0,
@@ -37,6 +38,11 @@ export default class Store {
     return this._pages.filter((page) => {
       return !page.isRequested;
     });
+  }
+
+  // fetchable
+  get unfetchable() {
+    return this._unfetchablePages;
   }
 
   // fetching
@@ -74,43 +80,30 @@ export default class Store {
     return new Store(this, { readOffset });
   }
 
-  fetch(offset) {
-    let page = this.get(offset);
-
-    if (!page.isRequested) {
-      return new Store(this, {
-        _pages: this._pages.map(p => p === page ? p.request() : p)
-      });
-    }
-    return this;
+  fetch(page = {}) {
+    return new Store(this, {
+      _pages: this._pages.map(p => p === page ? p.request() : p)
+    });
   }
 
-  // TODO: Do we resolve with the page offset? Or can we just pass in the page?
-  resolve(records, offset, stats) {
-    let page = this.get(offset);
-
-    if(page.isPending) {
-      return new Store(this, {
-        _pages: this._pages.map(p => p === page ? p.resolve(records) : p),
-        stats: stats || this.stats
-      });
-    } else {
-      return this;
-    }
+  unfetch(page = {}) {
+    return new Store(this, {
+      _unfetchablePages: this._unfetchablePages.filter(p => p !== page)
+    });
   }
 
-  // TODO: Do we reject with the page offset? Or can we just pass in the page?
-  reject(error, offset, stats) {
-    let page = this.get(offset);
+  resolve(records, page, stats) {
+    return new Store(this, {
+      _pages: this._pages.map(p => p === page ? p.resolve(records) : p),
+      stats: stats || this.stats
+    });
+  }
 
-    if(page.isPending) {
-      return new Store(this, {
-        _pages: this._pages.map(p => p === page ? p.reject(error) : p),
-        stats: stats || this.stats
-      });
-    } else {
-      return this;
-    }
+  reject(error, page, stats) {
+    return new Store(this, {
+      _pages: this._pages.map(p => p === page ? p.reject(error) : p),
+      stats: stats || this.stats
+    });
   }
 
   // Private API
@@ -196,26 +189,22 @@ export default class Store {
     let minUnloadHorizon = Math.max(minUnloadPage, 0) - baseOffset;
     let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this._pages.length) - baseOffset;
 
+    let unfetchable = [];
     // Unload Pages outside the upper `unloadHorizons`
     for (let i = pages.length - 1; i >= maxUnloadHorizon; i -= 1) {
       let page = pages[i];
       if (page) {
-        pages.splice(page.offset, 1);
+        let [ unloadedPage = {} ] = pages.splice(page.offset, 1);
+        if (unloadedPage.isResolved) {
+          unfetchable.push(unloadedPage);
+        }
       }
     }
 
     // Unload Unrequested Pages outside the upper `loadHorizons`
     for (let i = maxUnloadHorizon - 1; i >= maxLoadHorizon; i -= 1) {
       let page = pages[i];
-      if (page && !page.isRequested) {
-        pages.splice(page.offset, 1);
-      }
-    }
-
-    // Unload Pages outside the lower `unloadHorizons`
-    for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
-      let page = pages[i];
-      if (page) {
+      if (page && !page.isSettled) {
         pages.splice(page.offset, 1);
       }
     }
@@ -227,6 +216,19 @@ export default class Store {
         pages.splice(page.offset, 1);
       }
     }
+
+    // Unload Pages outside the lower `unloadHorizons`
+    for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
+      let page = pages[i];
+      if (page) {
+        let [ unloadedPage = {} ] = pages.splice(page.offset, 1);
+        if (unloadedPage.isResolved) {
+          unfetchable.push(unloadedPage);
+        }
+      }
+    }
+
+    this._unfetchablePages = this._unfetchablePages.concat(unfetchable);
   }
 
   _requestHorizons() {
