@@ -115,10 +115,7 @@ describe("Pages Interface Store ", function() {
 
         describe("fetching all unrequested pages", function() {
           beforeEach(function() {
-            // TODO: Explore better syntax
-            store.unrequested.forEach((unrequestedPage) => {
-              store = store.fetch(unrequestedPage);
-            });
+            store = store.fetch(store.unrequested);
           });
 
           it("requests pages", function() {
@@ -215,11 +212,7 @@ describe("Pages Interface Store ", function() {
 
       describe("fetching all unrequested pages", function() {
         beforeEach(function() {
-          // TODO: Explore better syntax
-          // store = store.bulkFetch(store.unrequested);
-          store.unrequested.forEach((unrequestedPage) => {
-            store = store.fetch(unrequestedPage);
-          });
+          store = store.fetch(store.unrequested);
         });
 
         it("requests pages", function() {
@@ -259,11 +252,7 @@ describe("Pages Interface Store ", function() {
 
             describe("unfetching all unfetchable pages", function() {
               beforeEach(function() {
-                // TODO: Explore better syntax
-                // store = store.bulkUnfetch(store.unfetchable);
-                store.unfetchable.forEach((unfetchablePage) => {
-                  store = store.unfetch(unfetchablePage);
-                });
+                store = store.unfetch(store.unfetchable);
               });
 
               it("unfetches pages", function() {

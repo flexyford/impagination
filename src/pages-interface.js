@@ -80,15 +80,17 @@ export default class Store {
     return new Store(this, { readOffset });
   }
 
-  fetch(page = {}) {
+  fetch(fetchable = []) {
+    if(!Array.isArray(fetchable)) { fetchable = [ fetchable ]; }
     return new Store(this, {
-      _pages: this._pages.map(p => p === page ? p.request() : p)
+      _pages: this._pages.map(p => fetchable.includes(p) ? p.request() : p)
     });
   }
 
-  unfetch(page = {}) {
+  unfetch(unfetchable = []) {
+    if(!Array.isArray(unfetchable)) { unfetchable = [ unfetchable ]; }
     return new Store(this, {
-      _unfetchablePages: this._unfetchablePages.filter(p => p !== page)
+      _unfetchablePages: this._unfetchablePages.filter(p => !unfetchable.includes(p))
     });
   }
 

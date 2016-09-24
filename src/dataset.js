@@ -26,22 +26,10 @@ export default class Dataset {
   // Public Functions
   setReadOffset(readOffset) {
     readOffset = Number(readOffset);
-
-    if(readOffset !== this.readOffset) {
-      let requested = [];
+    if (readOffset !== this.readOffset) {
       this.pages = this.pages.setReadOffset(readOffset);
-
-      // Request all Unrequested Pages
-      this.pages.unrequested.forEach((unrequested) => {
-        this.pages = this.pages.fetch(unrequested);
-        requested.push(unrequested.offset);
-      });
-
-      // Fetch the recently Requested Pages
-      this.pages.pending
-        .filter(pending => requested.includes(pending.offset))
-        .forEach(page => this._fetchPage(page));
-
+      this.pages.unrequested.forEach(p => this._fetchPage(p));
+      this.pages.unfetchable.forEach(p => this._unfetchPage(p));
       this.observe(this.pages);
     }
   }
@@ -77,15 +65,24 @@ export default class Dataset {
   }
 
   // Private Function
-  _fetchPage(page) {
-    let offset = page.offset;
+  _fetchPage(fetchable) {
+    // TODO: Allow `fetchable` be an array of pages
+    this.pages = this.pages.fetch(fetchable);
+    let page = this.pages.pending.find(p => p.offset === fetchable.offset);
     let pageSize = this.pages.pageSize;
     let stats = this.pages.stats;
 
-    this.fetch.call(this, offset, pageSize, stats).then((records = []) => {
+    this.fetch.call(this, page.offset, pageSize, stats).then((records = []) => {
       this.observe(this.pages = this.pages.resolve(records, page, stats));
     }).catch((error = {}) => {
       this.observe(this.pages = this.pages.reject(error, page, stats));
     });
+  }
+
+  // Private Function
+  _unfetchPage(unfetchable) {
+    // TODO: Allow `unfetchable` to be an array of pages
+    this.pages = this.pages.unfetch(unfetchable);
+    this.unfetch.call(this, page.records, page.offset);
   }
 };
