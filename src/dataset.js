@@ -1,10 +1,10 @@
-import Pages from './pages-interface';
+import Store from './lazy-store';
 import Record from './record';
 import findIndex from './find-index';
 
 export default class Dataset {
   constructor(attrs = {}) {
-    this.pages = new Pages({
+    this.store = new Store({
       pageSize: Number(attrs.pageSize),
       loadHorizon: Number(attrs.loadHorizon || attrs.pageSize),
       unloadHorizon: Number(attrs.unloadHorizon) || Infinity,
@@ -20,23 +20,23 @@ export default class Dataset {
       throw new Error('created Dataset without fetch()');
     }
 
-    this.observe(this.pages);
+    this.observe(this.store);
   }
 
   // Public Functions
   setReadOffset(readOffset) {
     readOffset = Number(readOffset);
     if (readOffset !== this.readOffset) {
-      this.pages = this.pages.setReadOffset(readOffset);
-      this.pages.unrequested.forEach(p => this._fetchPage(p));
-      this.pages.unfetchable.forEach(p => this._unfetchPage(p));
-      this.observe(this.pages);
+      this.store = this.store.setReadOffset(readOffset);
+      this.store.unrequested.forEach(p => this._fetchPage(p));
+      this.store.unfetchable.forEach(p => this._unfetchPage(p));
+      this.observe(this.store);
     }
   }
 
   // Applies the filter to all possible Resolved Pages
   refilter() {
-    let pages = new Pages(this.pages, {
+    let pages = new Store(this.store, {
       _pages: undefined,
       readOffset: undefined
     });
@@ -46,7 +46,7 @@ export default class Dataset {
 
   // Unload all pages, 'unfetch' every unloaded page
   unload() {
-    let pages = new Pages(this.pages, {
+    let pages = new Store(this.store, {
       _pages: undefined,
       readOffset: undefined
     });
@@ -56,7 +56,7 @@ export default class Dataset {
 
   // Destroy all pages, does not `unfetch` any destroyed page
   reset() {
-    let pages = new Pages(this.pages, {
+    let pages = new Store(this.store, {
       _pages: undefined,
       readOffset: undefined
     });
@@ -66,21 +66,21 @@ export default class Dataset {
 
   _fetchPage(fetchable) {
     // TODO: Allow `fetchable` be an array of pages
-    this.pages = this.pages.fetch(fetchable);
-    let page = this.pages.pending.find(p => p.offset === fetchable.offset);
-    let pageSize = this.pages.pageSize;
-    let stats = this.pages.stats;
+    this.store = this.store.fetch(fetchable);
+    let page = this.store.pending.find(p => p.offset === fetchable.offset);
+    let pageSize = this.store.pageSize;
+    let stats = this.store.stats;
 
     this.fetch.call(this, page.offset, pageSize, stats).then((records = []) => {
-      this.observe(this.pages = this.pages.resolve(records, page, stats));
+      this.observe(this.store = this.store.resolve(records, page, stats));
     }).catch((error = {}) => {
-      this.observe(this.pages = this.pages.reject(error, page, stats));
+      this.observe(this.store = this.store.reject(error, page, stats));
     });
   }
 
   _unfetchPage(unfetchable) {
     // TODO: Allow `unfetchable` to be an array of pages
-    this.pages = this.pages.unfetch(unfetchable);
+    this.store = this.store.unfetch(unfetchable);
     this.unfetch.call(this, page.records, page.offset);
   }
 };

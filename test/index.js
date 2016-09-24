@@ -7,4 +7,4 @@ require("babel/register")({
 // The tests, however, can and should be written with ECMAScript 2015.
 
 require("./dataset-test.js");
-require("./pages-interface-test.js");
+require("./lazy-store-test.js");

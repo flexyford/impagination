@@ -1,4 +1,4 @@
-import Store from '../src/pages-interface';
+import Store from '../src/lazy-store';
 
 import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
