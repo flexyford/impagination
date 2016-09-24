@@ -72,13 +72,14 @@ describe("Pages Interface Store ", function() {
         });
 
         it("has empty unrequested records", function() {
-          expect(store.length).to.equal(10);
-
           const readOffset = store.readOffset;
+          const records = store.slice();
+          const record = records[readOffset];
+
           expect(readOffset).to.equal(0);
+          expect(store.length).to.equal(10);
+          expect(records.length).to.equal(10);
 
-
-          const record = store.getRecord(readOffset);
           expect(record.isRequested).to.be.false;
           expect(record.isPending).to.be.false;
           expect(record.isResolved).to.be.false;
@@ -97,13 +98,14 @@ describe("Pages Interface Store ", function() {
           });
 
           it("has more unrequested records", function() {
-            expect(store.length).to.equal(50);
-
             const readOffset = store.readOffset;
+            const records = store.slice();
+            const record = records[readOffset];
+
             expect(readOffset).to.equal(35);
+            expect(store.length).to.equal(50);
+            expect(records.length).to.equal(50);
 
-
-            const record = store.getRecord(readOffset);
             expect(record.isRequested).to.be.false;
             expect(record.isPending).to.be.false;
             expect(record.isResolved).to.be.false;
@@ -123,13 +125,14 @@ describe("Pages Interface Store ", function() {
           });
 
           it("has pending records", function() {
-            expect(store.length).to.equal(10);
-
             const readOffset = store.readOffset;
+            const records = store.slice();
+            const record = records[readOffset];
+
             expect(readOffset).to.equal(0);
+            expect(store.length).to.equal(10);
+            expect(records.length).to.equal(10);
 
-
-            const record = store.getRecord(readOffset);
             expect(record.isRequested).to.be.true;
             expect(record.isPending).to.be.true;
             expect(record.isResolved).to.be.false;

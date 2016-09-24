@@ -64,7 +64,6 @@ export default class Dataset {
     this.observe(pages);
   }
 
-  // Private Function
   _fetchPage(fetchable) {
     // TODO: Allow `fetchable` be an array of pages
     this.pages = this.pages.fetch(fetchable);
@@ -79,7 +78,6 @@ export default class Dataset {
     });
   }
 
-  // Private Function
   _unfetchPage(unfetchable) {
     // TODO: Allow `unfetchable` to be an array of pages
     this.pages = this.pages.unfetch(unfetchable);

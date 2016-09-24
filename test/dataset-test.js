@@ -78,9 +78,9 @@ describe("Dataset", function() {
     });
 
     it("creates an observable dataset", function() {
-      let record = store.getRecord(0);
+      let records = store.slice();
       expect(store.length).to.equal(0);
-      expect(record.content).to.equal(null);
+      expect(records.length).to.equal(0);
     });
 
     it("does not fetch a page", function() {
@@ -106,9 +106,12 @@ describe("Dataset", function() {
         });
 
         it("resolves the page", function() {
+          let records = store.slice();
           expect(store.resolved.length).to.equal(1);
+          expect(store.length).to.equal(10);
+          expect(records.length).to.equal(10);
 
-          let name = store.getRecord(0).content.name;
+          let name = records[0].content.name;
           expect(name).to.equal('Record 0');
         });
       });
@@ -126,9 +129,9 @@ describe("Dataset", function() {
         });
 
         it("does not have any records", function() {
-          let record = store.getRecord(0);
+          let records = store.slice();
           expect(store.length).to.equal(0);
-          expect(record.content).to.equal(null);
+          expect(records.length).to.equal(0);
         });
       });
     });

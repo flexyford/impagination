@@ -12,9 +12,6 @@ export default class Store {
       unloadHorizon: Infinity,
       readOffset: undefined,
       stats: { totalPages: undefined },
-
-      // Consider a Records-Interface in the future
-      // Right now is too early to abstract into class
       records: {}
     }, previous, attrs);
 
@@ -26,7 +23,8 @@ export default class Store {
       throw new Error('created Pages with unloadHorizon less than loadHorizon');
     }
 
-    this.totalPages = this.getPagesLength();
+    // TODO: Is this really a property we need?
+    this.totalPages = this._calcPagesLength();
 
     this._updateHorizons();
 
@@ -72,10 +70,6 @@ export default class Store {
     });
   }
 
-  get unloaded() {
-    return [];
-  }
-
   setReadOffset(readOffset) {
     return new Store(this, { readOffset });
   }
@@ -108,8 +102,32 @@ export default class Store {
     });
   }
 
+  slice(begin, end) {
+    begin = (typeof begin == 'number') ? begin : 0;
+    end = (typeof end == 'number') ? end : this.length;
+
+    // Handle negative value for "begin"
+    let start = (begin >= 0) ? begin : Math.max(0, this.length + begin);
+
+    // Handle negative value for "end"
+    let upTo = (end >= 0) ? Math.min(end, this.length) : this.length + end;
+
+    // Actual expected size of the slice
+    let size = upTo - start;
+
+    let records = [];
+    if (size > 0) {
+      records = new Array(size);
+      for (let i = 0; i < size; i++) {
+        records[i] = this._getRecord(start + i);
+      }
+    }
+
+    return records;
+  }
+
   // Private API
-  getPagesLength() {
+  _calcPagesLength() {
     let offset = this.readOffset;
 
     if (offset === null || offset === undefined) return 0;
@@ -130,23 +148,23 @@ export default class Store {
     }, (this.totalPages - this.rejected.length) * this.pageSize);
   }
 
-  get(pageOffset) {
+  _getPage(offset) {
     const firstPage = this._pages[0];
     const lastPage = this._pages[this._pages.length - 1];
 
     const pageExists = this._pages.length &&
-            pageOffset >= firstPage.offset &&
-            pageOffset <= lastPage.offset;
+            offset >= firstPage.offset &&
+            offset <= lastPage.offset;
 
     if (pageExists) {
-      return this._pages[pageOffset - firstPage.offset];
+      return this._pages[offset - firstPage.offset];
     } else {
-      return new Page(pageOffset, this.pageSize);
+      return new Page(offset, this.pageSize);
     }
   }
 
-  getRecord(index) {
-    if(index >= this.records.length) return null;
+  _getRecord(index) {
+    if(index >= this.length) return null;
 
     const pageIndex = Math.floor(index / this.pageSize);
     const firstResolvedPage = this.resolved && this.resolved[0];
@@ -154,7 +172,7 @@ export default class Store {
     const recordIsUnresolved = !firstResolvedPage || pageIndex < firstResolvedPage.offset;
 
     if (recordIsUnresolved) {
-      const currentPage = this.get(pageIndex);
+      const currentPage = this._getPage(pageIndex);
       const recordIndex = index % this.pageSize;
 
       return currentPage.records[recordIndex];
@@ -164,9 +182,8 @@ export default class Store {
 
       while(recordIndex >= currentPage.records.length) {
         recordIndex -= currentPage.records.length;
-        currentPage = this.get(currentPage.offset + 1);
+        currentPage = this._getPage(currentPage.offset + 1);
       }
-
 
       return currentPage.records[recordIndex];
     }
