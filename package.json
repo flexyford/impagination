@@ -28,6 +28,7 @@
     "rsvp": "^3.1.0"
   },
   "dependencies": {
-    "babel-runtime": "^5.8.25"
+    "babel-runtime": "^5.8.25",
+    "binary-search-tree": "^0.2.6"
   }
 }

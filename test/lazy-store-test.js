@@ -156,7 +156,7 @@ describe("Pages Interface Store ", function() {
             beforeEach(function() {
               store.pending.forEach((pendingPage) => {
                 let records = createRecords(store.pageSize, pendingPage.offset);
-                store = store.resolve(records, pendingPage);
+                store = store.resolve(records, pendingPage.offset);
               });
             });
 
@@ -236,7 +236,7 @@ describe("Pages Interface Store ", function() {
           beforeEach(function() {
             store.pending.forEach((pendingPage) => {
               let records = createRecords(store.pageSize, pendingPage.offset);
-              store = store.resolve(records, pendingPage);
+              store = store.resolve(records, pendingPage.offset);
             });
           });
 
@@ -286,6 +286,35 @@ describe("Pages Interface Store ", function() {
         expect(store.totalPages).to.equal(10);
         expect(store.unrequested.length).to.equal(1);
         expect(store.length).to.equal(100);
+      });
+
+      describe("setting the readOffset out of bounds", function() {
+        beforeEach(function() {
+          store.unrequested.forEach((unrequestedPage) => {
+            store = store.fetch(unrequestedPage);
+          });
+          store.pending.forEach((pendingPage) => {
+            let records = createRecords(store.pageSize, pendingPage.offset);
+            store = store.resolve(records, pendingPage.offset);
+          });
+        });
+        describe("where the minimum loadHorizon is less than the dataset length", function() {
+          let readOffset;
+          beforeEach(function() {
+
+            readOffset = store.length + store.loadHorizon - 1;
+            store = store.setReadOffset(readOffset);
+          });
+          it("has a new unrequested page", function() {
+            expect(store.unrequested.length).to.equal(1);
+            expect(store.unrequested[0].offset).to.equal(9);
+            expect(store._getPage(9).offset).to.equal(9);
+          });
+          it("does not have a record at the readOffset", function() {
+            let record = store._getRecord(readOffset);
+            expect(record).to.equal(null);
+          });
+        });
       });
     });
   });

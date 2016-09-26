@@ -4,6 +4,8 @@ require("babel/register")({
   optional: "runtime"
 });
 
+require('binary-search-tree');
+
 // The tests, however, can and should be written with ECMAScript 2015.
 
 require("./dataset-test.js");

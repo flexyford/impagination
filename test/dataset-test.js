@@ -57,11 +57,11 @@ describe("Dataset", function() {
     };
 
     let unfetch =  (records, pageOffset)=> {
-      unfetched = requests[pageOffset];
+      return unfetched = requests[pageOffset];
     };
 
     let observe =  (_pages) => {
-      Object.assign(dataset, { store: _pages });
+      return Object.assign(dataset, { store: _pages });
     };
 
     beforeEach(function() {
@@ -188,8 +188,9 @@ describe("Dataset", function() {
       });
 
       describe("resolving all requests", function() {
-        beforeEach(function() {
-          return server.resolveAll();
+        beforeEach(function(done) {
+          let finish = ()=> done();
+          return server.resolveAll().then(finish).catch(finish);
         });
         it("has two resolved pages", function() {
           const record = dataset.store._getRecord(0);
@@ -209,46 +210,125 @@ describe("Dataset", function() {
         });
       });
     });
-  });
 
-  describe.skip("setting readOffset to zero", function () {
-    beforeEach(function() {
-      this.dataset = new Dataset();
-      this.initialReadOffset = 0;
-    });
-    describe("with less than two pages loadHorizon", function() {
+    describe("setting read off to a large offset", function() {
       beforeEach(function() {
-        this.options.loadHorizon = 15;
-        this.dataset.init(this.options);
-        this.dataset.setReadOffset(this.initialReadOffset);
+        dataset = new Dataset({
+          pageSize: 10,
+          loadHorizon: 15,
+          unloadHorizon: 15,
+          fetch, unfetch, observe
+        });
+        dataset.setReadOffset(50);
       });
 
-
-      describe.skip("incrementing the readOffset to the next page", function() {
-        beforeEach(function() {
-          this.dataset.setReadOffset(10);
-          return this.server.resolveAll();
-        });
-        it("has three resolved pages", function() {
-          expect(this.recordAtPage(0).isResolved).to.be.true;
-          expect(this.recordAtPage(1).isResolved).to.be.true;
-          expect(this.recordAtPage(2).isResolved).to.be.true;
-        });
+      it("has many unrequested and pending pages", function() {
+        expect(dataset.store.length).to.equal(70);
+        expect(dataset.store.totalPages).to.equal(7);
+        expect(dataset.store.pending.length).to.equal(4);
       });
-      describe.skip("decrementing the readOffset below 0", function() {
+
+      describe("resolving all requests", function() {
         beforeEach(function() {
-          this.dataset.setReadOffset(-5);
-          return this.server.resolveAll();
+          return server.resolveAll();
         });
-        it("sets the readOffset to 0", function () {
-          expect(dataset.readOffset).to.equal(0);
+        it("has many unrequested and resolved pages", function() {
+          expect(dataset.store.length).to.equal(70);
+          expect(dataset.store.totalPages).to.equal(7);
+          expect(dataset.store.pending.length).to.equal(0);
+          expect(dataset.store.resolved.length).to.equal(4);
         });
       });
     });
+
+    describe("Statistics ", function() {
+      describe("when fetch() returns totalPages", function() {
+        beforeEach(function() {
+          fetch = (pageOffset, pageSize, stats) => {
+            stats.totalPages = 10;
+            return server.request(pageOffset, pageSize, stats);
+          };
+          dataset = new Dataset({
+            pageSize: 10,
+            fetch, unfetch, observe
+          });
+          return dataset.setReadOffset(0);
+        });
+
+        it("makes one request", function() {
+          expect(server.requests.length).to.equal(1);
+          expect(dataset.store.requested.length).to.equal(1);
+        });
+
+        it("sets total pages", function() {
+          // TODO: Why is this set already?
+          // expect(dataset.store.stats.totalPages).to.equal(undefined);
+          expect(dataset.store.length).to.equal(10);
+        });
+
+        describe("resolving the request with totalPages stats", function() {
+          beforeEach(function() {
+            return server.resolveAll();
+          });
+
+          it("sets total pages", function() {
+            expect(dataset.store.stats.totalPages).to.equal(10);
+            expect(dataset.store.length).to.equal(100);
+            expect(dataset.store.requested.length).to.equal(1);
+          });
+
+          describe("Setting readOffset out of bounds", function() {
+
+            describe("where the minimum loadHorizon is less than the dataset length", function() {
+              beforeEach(function() {
+                let minLoadHorizon = dataset.store.length - 1;
+                dataset.setReadOffset(minLoadHorizon + dataset.store.loadHorizon);
+              });
+              it("makes one additional request", function() {
+                expect(dataset.store.requested.length).to.equal(2);
+              });
+              it("requests the last page", function() {
+                expect(dataset.store._getRecord(90).isRequested).to.be.true;
+              });
+              it("does not have a record at the readOffset", function() {
+                let record = dataset.store._getRecord(100);
+                expect(record).to.equal(null);
+              });
+            });
+            describe("where the minimum loadHorizon is greater than or equal to the dataset length", function() {
+              beforeEach(function() {
+                let minLoadHorizon = dataset.store.length;
+                dataset.setReadOffset(minLoadHorizon + dataset.store.loadHorizon);
+              });
+
+              it("does not make any additional request", function() {
+                expect(dataset.store.requested.length).to.equal(1);
+                expect(dataset.store.length).to.equal(100);
+              });
+              it("sets the readOffset at the out of bounds index", function() {
+                expect(dataset.store.readOffset).to.equal(110);
+              });
+            });
+          });
+        });
+
+        describe("rejecting the request with totalPages stats", function() {
+          beforeEach(function(done) {
+            let page = dataset.store.requested[0];
+            let finish = ()=> done();
+            return server.reject(page.offset).then(finish).catch(finish);
+          });
+
+          it("sets the total pages minus the length of the rjected page", function() {
+            expect(dataset.store.stats.totalPages).to.equal(10);
+            expect(dataset.store.length).to.equal(90);
+          });
+        });
+      });
+    });
+
   });
 });
-
-
 
 // TODO: These are the remaining tests
 // To migrate to the new dataset-tests
@@ -279,182 +359,6 @@ describe.skip("Dataset", function() {
           this.dataset = dataset;
         }
       };
-    });
-
-    describe("setting readOffset to zero", function () {
-      beforeEach(function() {
-        this.dataset = new Dataset();
-        this.initialReadOffset = 0;
-      });
-      describe("with less than one page loadHorizon", function() {
-        beforeEach(function() {
-          this.options.loadHorizon = 5;
-          this.dataset.init(this.options);
-          this.dataset.setReadOffset(this.initialReadOffset);
-        });
-        it("requests one page of records", function() {
-          expect(this.dataset.length).to.equal(10);
-        });
-      });
-      describe("with less than two pages loadHorizon", function() {
-        beforeEach(function() {
-          this.options.loadHorizon = 15;
-          this.dataset.init(this.options);
-          this.dataset.setReadOffset(this.initialReadOffset);
-        });
-        it("requests two pages of records", function() {
-          expect(this.dataset.length).to.equal(20);
-        });
-        describe("resolving all requests", function() {
-          beforeEach(function() {
-            return this.server.resolveAll();
-          });
-          it("has two resolved pages", function() {
-            expect(this.recordAtPage(0).isResolved).to.be.true;
-            // expect(this.recordAtPage(1).isResolved).to.be.true;
-            // expect(this.recordAtPage(2)).to.be.empty;
-          });
-        });
-        describe.skip("rejecting all requests", function() {
-          beforeEach(function(done) {
-            this.server.requests.forEach((request) => request.reject());
-            let finish = ()=> done();
-            return Promise.all(this.server.requests).then(finish).catch(finish);
-          });
-          it("has two rejected pages", function() {
-            expect(this.recordAtPage(0).isRejected).to.be.true;
-            expect(this.recordAtPage(1).isRejected).to.be.true;
-            expect(this.recordAtPage(2)).to.be.empty;
-          });
-        });
-        describe.skip("incrementing the readOffset to the next page", function() {
-          beforeEach(function() {
-            this.dataset.setReadOffset(10);
-            return this.server.resolveAll();
-          });
-          it("has three resolved pages", function() {
-            expect(this.recordAtPage(0).isResolved).to.be.true;
-            expect(this.recordAtPage(1).isResolved).to.be.true;
-            expect(this.recordAtPage(2).isResolved).to.be.true;
-          });
-        });
-        describe.skip("decrementing the readOffset below 0", function() {
-          beforeEach(function() {
-            this.dataset.setReadOffset(-5);
-            return this.server.resolveAll();
-          });
-          it("sets the readOffset to 0", function () {
-            expect(this.dataset.readOffset).to.equal(0);
-          });
-        });
-      });
-    });
-
-    describe.skip("setting readOffset to a large offset", function() {
-      beforeEach(function() {
-        this.initialReadOffset = 50;
-      });
-      describe("with less than one page loadHorizon", function() {
-        beforeEach(function() {
-          this.options.loadHorizon = 5;
-          this.dataset = new Dataset(this.options);
-          this.dataset.setReadOffset(this.initialReadOffset);
-        });
-        it("initializes six pages of records", function() {
-          expect(this.dataset.length).to.equal(60);
-        });
-        it("has two pending pages", function() {
-          expect(this.recordAtPage(3).isRequested).to.be.false;
-          expect(this.recordAtPage(4).isPending).to.be.true;
-          expect(this.recordAtPage(5).isPending).to.be.true;
-          expect(this.recordAtPage(6)).to.be.empty;
-        });
-      });
-      describe("with less than two page loadHorizon and unloadHorizon", function() {
-        beforeEach(function() {
-          this.options.loadHorizon = 15;
-          this.options.unloadHorizon = 15;
-          this.dataset = new Dataset(this.options);
-          this.dataset.setReadOffset(this.initialReadOffset);
-        });
-        it("initializes seven pages of records", function() {
-          expect(this.dataset.length).to.equal(70);
-        });
-        it("has four pending pages", function() {
-          expect(this.recordAtPage(2).isRequested).to.be.false;
-          expect(this.recordAtPage(3).isPending).to.be.true;
-          expect(this.recordAtPage(4).isPending).to.be.true;
-          expect(this.recordAtPage(5).isPending).to.be.true;
-          expect(this.recordAtPage(6).isPending).to.be.true;
-          expect(this.recordAtPage(7)).to.be.empty;
-        });
-        describe("incrementing the read offset to the next page before resolving any pages", function() {
-          beforeEach(function() {
-            this.dataset.setReadOffset(60);
-          });
-          it("unloads a page", function() {
-            expect(this.recordAtPage(3).isRequested).to.be.false;
-          });
-          it("has four pending pages", function() {
-            expect(this.recordAtPage(4).isPending).to.be.true;
-            expect(this.recordAtPage(5).isPending).to.be.true;
-            expect(this.recordAtPage(6).isPending).to.be.true;
-            expect(this.recordAtPage(7).isPending).to.be.true;
-            expect(this.recordAtPage(8)).to.be.empty;
-          });
-        });
-
-        describe("resolving all requests", function() {
-          beforeEach(function() {
-            return this.server.resolveAll();
-          });
-          it("has four resolved pages", function() {
-            expect(this.recordAtPage(2).isRequested).to.be.false;
-            expect(this.recordAtPage(3).isResolved).to.be.true;
-            expect(this.recordAtPage(4).isResolved).to.be.true;
-            expect(this.recordAtPage(5).isResolved).to.be.true;
-            expect(this.recordAtPage(6).isResolved).to.be.true;
-          });
-          describe("incrementing the readOffset to the next page", function() {
-            beforeEach(function() {
-              this.prevRequest = this.server.requests[3];
-              this.dataset.setReadOffset(60);
-              return this.server.resolveAll();
-            });
-            it("unloads a page", function() {
-              expect(this.recordAtPage(3).isRequested).to.be.false;
-            });
-            it("unfetches the unloaded page", function() {
-              var unfetchedRequest = this.server.requests[3];
-              expect(unfetchedRequest).to.be.empty;
-              expect(this.prevRequest).to.not.be.empty;
-            });
-            it("has four resolved pages", function() {
-              expect(this.recordAtPage(4).isResolved).to.be.true;
-              expect(this.recordAtPage(5).isResolved).to.be.true;
-              expect(this.recordAtPage(6).isResolved).to.be.true;
-              expect(this.recordAtPage(7).isResolved).to.be.true;
-              expect(this.recordAtPage(8)).to.be.empty;
-            });
-          });
-          describe("decrementing the readOffset to the prev page", function() {
-            beforeEach(function() {
-              this.dataset.setReadOffset(40);
-              return this.server.resolveAll();
-            });
-            it("unloads a page", function() {
-              expect(this.recordAtPage(6).isRequested).to.be.false;
-            });
-
-            it("has four resolved pages", function() {
-              expect(this.recordAtPage(2).isResolved).to.be.true;
-              expect(this.recordAtPage(3).isResolved).to.be.true;
-              expect(this.recordAtPage(4).isResolved).to.be.true;
-              expect(this.recordAtPage(5).isResolved).to.be.true;
-            });
-          });
-        });
-      });
     });
 
     describe.skip("fetching filtered records", function() {
@@ -602,109 +506,6 @@ describe.skip("Dataset", function() {
               const record = this.dataset.get(0);
               expect(record.content).to.be.equal(null);
             });
-          });
-        });
-      });
-
-    });
-
-
-    describe.skip("Statistics ", function() {
-      beforeEach(function() {
-        this.server = new Server();
-        this.numFetchedPages = function() {
-          return this.server.requests.reduce(function(num, request) {
-            return (request instanceof PageRequest) ? num + 1 : num;
-          }, 0);
-        };
-      });
-
-      describe("when fetch() returns totalPages", function() {
-        beforeEach(function() {
-          this.totalPages = 10;
-          this.options = {
-            pageSize: 10,
-            fetch: (pageOffset, pageSize, stats) => {
-              stats.totalPages = 10;
-              return this.server.request(pageOffset, pageSize, stats);
-            },
-            unfetch: (records, pageOffset)=> {
-              return this.server.remove(records, pageOffset);
-            },
-            observe: (state) => {
-              this.dataset = state;
-            }
-          };
-          this.dataset = new Dataset(this.options);
-          this.dataset.setReadOffset(0);
-        });
-
-        it("makes one request", function() {
-          expect(this.numFetchedPages()).to.equal(1);
-        });
-
-        describe("resolving the request with totalPages stats", function() {
-          beforeEach(function() {
-            return this.server.resolveAll();
-          });
-
-          it("sets total pages", function() {
-            expect(this.dataset.stats.totalPages).to.equal(10);
-            expect(this.dataset.length).to.equal(100);
-          });
-
-          describe("Setting readOffset out of bounds", function() {
-            beforeEach(function() {
-              this.prevRequestCount = this.server.requests.length;
-            });
-            describe("where the minimum loadHorizon is less than the dataset length", function() {
-              beforeEach(function() {
-                let minLoadHorizon = this.dataset.length - 1;
-                this.dataset.setReadOffset(minLoadHorizon + this.dataset.loadHorizon);
-              });
-              it("makes one additional request", function() {
-                expect(this.numFetchedPages()).to.equal(this.prevRequestCount + 1);
-              });
-              it("requests the last page", function() {
-                expect(this.recordAtPage(9).isRequested).to.be.true;
-              });
-              it("does not have a record at the readOffset", function() {
-                let record = this.dataset.pages.records.get(100);
-                expect(record).to.equal(null);
-              });
-              it("is in a pending state", function() {
-                expect(this.dataset.isPending).to.be.true;
-              });
-            });
-            describe("where the minimum loadHorizon is greater than or equal to the dataset length", function() {
-              beforeEach(function() {
-                let minLoadHorizon = this.dataset.length;
-                this.dataset.setReadOffset(minLoadHorizon + this.dataset.loadHorizon);
-              });
-
-              it("does not make any additional request", function() {
-                expect(this.numFetchedPages()).to.equal(this.prevRequestCount);
-                expect(this.dataset.length).to.equal(100);
-              });
-              it("sets the readOffset at the out of bounds index", function() {
-                expect(this.dataset.readOffset).to.equal(110);
-              });
-              it("is not in a pending state", function() {
-                expect(this.dataset.isPending).to.be.false;
-              });
-            });
-          });
-        });
-
-        describe("rejecting the request with totalPages stats", function() {
-          beforeEach(function(done) {
-            let finish = ()=> done();
-            return this.server.requests[0].reject().then(finish).catch(finish);
-          });
-
-          it("sets the total pages", function() {
-            expect(this.dataset.stats.totalPages).to.equal(10);
-            expect(this.dataset.length).to.equal(100);
           });
         });
       });
