@@ -19,8 +19,6 @@ export default class Dataset {
     if (!this.fetch) {
       throw new Error('created Dataset without fetch()');
     }
-
-    this.observe(this.store);
   }
 
   // Public Functions
@@ -36,22 +34,22 @@ export default class Dataset {
 
   // Applies the filter to all possible Resolved Pages
   refilter() {
-    let pages = new Store(this.store, {
+    this.store = new Store(this.store, {
       _pages: undefined,
       readOffset: undefined
     });
 
-    this.observe(pages);
+    this.observe(this.store);
   }
 
   // Unload all pages, 'unfetch' every unloaded page
   unload() {
-    let pages = new Store(this.store, {
+    this.store = new Store(this.store, {
       _pages: undefined,
       readOffset: undefined
     });
 
-    this.observe(pages);
+    this.observe(this.store);
   }
 
   // Destroy all pages, does not `unfetch` any destroyed page

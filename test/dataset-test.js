@@ -61,7 +61,7 @@ describe("Dataset", function() {
     };
 
     let observe =  (_pages) => {
-      store = _pages;
+      Object.assign(dataset, { store: _pages });
     };
 
     beforeEach(function() {
@@ -78,8 +78,8 @@ describe("Dataset", function() {
     });
 
     it("creates an observable dataset", function() {
-      let records = store.slice();
-      expect(store.length).to.equal(0);
+      let records = dataset.store.slice();
+      expect(dataset.store.length).to.equal(0);
       expect(records.length).to.equal(0);
     });
 
@@ -89,26 +89,39 @@ describe("Dataset", function() {
 
     describe("setting the read offset", function() {
       beforeEach(function() {
-        dataset = dataset.setReadOffset(0);
+        dataset.setReadOffset(0);
       });
 
       it("requests pages", function() {
         expect(requests.length).to.equal(1);
-        expect(store.requested.length).to.equal(1);
-        expect(store.readOffset).to.equal(0);
-        expect(store.length).to.equal(10);
+      });
+
+      it("sets the length and readOffset on dataset", function() {
+        expect(dataset.store.readOffset).to.equal(0);
+        expect(dataset.store.length).to.equal(10);
+      });
+
+      describe("advancing the read offset", function() {
+        beforeEach(function() {
+          dataset.setReadOffset(35);
+        });
+
+        it("requests additional pages", function() {
+          expect(requests.length).to.equal(5);
+          expect(dataset.store.length).to.equal(50);
+        });
       });
 
       describe("resolving a page", function() {
         beforeEach(function() {
-          let page = store.requested[0];
+          let page = dataset.store.requested[0];
           return server.resolve(page.offset);
         });
 
         it("resolves the page", function() {
-          let records = store.slice();
-          expect(store.resolved.length).to.equal(1);
-          expect(store.length).to.equal(10);
+          let records = dataset.store.slice();
+          expect(dataset.store.resolved.length).to.equal(1);
+          expect(dataset.store.length).to.equal(10);
           expect(records.length).to.equal(10);
 
           let name = records[0].content.name;
@@ -118,19 +131,19 @@ describe("Dataset", function() {
 
       describe("rejecting a page", function() {
         beforeEach(function(done) {
-          let page = store.requested[0];
+          let page = dataset.store.requested[0];
           let finish = ()=> done();
           return server.reject(page.offset).then(finish).catch(finish);
         });
 
         it("rejects the page", function() {
-          expect(store.rejected.length).to.equal(1);
-          expect(store.totalPages).to.equal(1);
+          expect(dataset.store.rejected.length).to.equal(1);
+          expect(dataset.store.totalPages).to.equal(1);
         });
 
         it("does not have any records", function() {
-          let records = store.slice();
-          expect(store.length).to.equal(0);
+          let records = dataset.store.slice();
+          expect(dataset.store.length).to.equal(0);
           expect(records.length).to.equal(0);
         });
       });
@@ -143,97 +156,6 @@ describe("Dataset", function() {
 // TODO: These are the remaining tests
 // To migrate to the new dataset-tests
 describe.skip("Dataset", function() {
-  describe("immutable states", function() {
-    beforeEach(function() {
-      this.server = new Server();
-      this.requests = this.server.requests;
-      this.recordsPerPage = 10;
-
-      this.options = {
-        pageSize: this.recordsPerPage,
-        fetch: (pageOffset, pageSize, stats)=> {
-          return this.server.request(pageOffset, pageSize, stats);
-        }
-      };
-      this.dataset = new Dataset();
-      this.dataset.init(this.options);
-      this.dataset.setReadOffset(0);
-
-      this.initialDataset = this.dataset;
-    });
-    describe("resolving all fetch request", function() {
-      beforeEach(function() {
-        return this.server.resolveAll();
-      });
-
-      it("transitions to a new Resolved state", function() {
-        expect(this.dataset.isResolved).to.be.true;
-      });
-
-      it("resolves records", function () {
-        expect(this.dataset.length).to.equal(10);
-
-        let record = this.dataset.records.get(0);
-        expect(record.isResolved).to.be.true;
-        expect(record.content.name).to.equal("Record 0");
-      });
-    });
-
-    describe("resolving a fetch request", function() {
-      beforeEach(function() {
-        return this.server.resolve(0);
-      });
-      it("transitions to a new Resolved state", function() {
-        expect(this.dataset.isResolved).to.be.true;
-      });
-      it("resolves records", function () {
-        expect(this.dataset.length).to.equal(10);
-
-        var record = this.dataset.records.get(0);
-        expect(record.isResolved).to.be.true;
-        expect(record.content.name).to.equal("Record 0");
-      });
-    });
-
-    describe.skip("rejecting a fetch request", function() {
-      beforeEach(function(done) {
-        let finish = ()=> done();
-        return this.server.reject(0);
-      });
-      it("transitions to a new Rejected state", function() {
-        expect(this.dataset).not.to.equal(this.initialDataset);
-        expect(this.dataset.isRejected).to.be.true;
-      });
-      it("rejects records", function() {
-        var record = this.dataset.records.get(0);
-        var page = this.dataset.pages.get(0);
-
-        expect(page.isRejected).to.be.true;
-        expect(page.error).to.equal("404");
-
-        expect(record.isRejected).to.be.true;
-        expect(record.error).to.equal("404");
-      });
-    });
-
-    describe("changing the readOffset", function() {
-      beforeEach(function() {
-        this.dataset.setReadOffset(1);
-      });
-      it("loads an additional page", function() {
-        expect(this.dataset.length).to.equal(20);
-      });
-    });
-
-    describe("not changing the readOffset", function() {
-      beforeEach(function() {
-        this.dataset.setReadOffset(0);
-      });
-      it("does not transition to a new state", function() {
-        expect(this.dataset).to.equal(this.initialDataset);
-      });
-    });
-  });
 
   describe("loading records", function() {
     beforeEach(function() {

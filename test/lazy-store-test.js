@@ -279,6 +279,7 @@ describe("Pages Interface Store ", function() {
 
       it("has default constructor values", function() {
         expect(store.stats.totalPages).to.equal(10);
+        expect(store.readOffset).to.equal(0);
       });
 
       it("requests pages", function() {

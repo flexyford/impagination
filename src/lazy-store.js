@@ -171,22 +171,23 @@ export default class Store {
 
     const recordIsUnresolved = !firstResolvedPage || pageIndex < firstResolvedPage.offset;
 
+    let currentPage, recordIndex;
+
     if (recordIsUnresolved) {
-      const currentPage = this._getPage(pageIndex);
-      const recordIndex = index % this.pageSize;
-
-      return currentPage.records[recordIndex];
+      currentPage = this._getPage(pageIndex);
+      recordIndex = index % this.pageSize;
     } else {
-      let currentPage = firstResolvedPage;
-      let recordIndex = index - (currentPage.offset * this.pageSize);
+      currentPage = firstResolvedPage;
+      recordIndex = index - (currentPage.offset * this.pageSize);
 
+      // TODO: This while loops assumes filtering exists
       while(recordIndex >= currentPage.records.length) {
         recordIndex -= currentPage.records.length;
         currentPage = this._getPage(currentPage.offset + 1);
       }
 
-      return currentPage.records[recordIndex];
     }
+    return currentPage.records[recordIndex];
   }
 
   _updateHorizons() {
@@ -196,24 +197,24 @@ export default class Store {
 
   _unloadHorizons() {
     let pages = this._pages;
-    const baseOffset = pages[0] && pages[0].offset || 0;
+    const lazyOffset = pages[0] && pages[0].offset || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
     let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
-    let minLoadHorizon = Math.max(minLoadPage, 0);
-    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+    let minLoadHorizon = Math.max(minLoadPage, 0) - lazyOffset;
+    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage) - lazyOffset;
 
-    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize) - baseOffset;
-    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize) - baseOffset;
-    let minUnloadHorizon = Math.max(minUnloadPage, 0) - baseOffset;
-    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this._pages.length) - baseOffset;
+    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
+    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+    let minUnloadHorizon = Math.max(minUnloadPage, 0) - lazyOffset;
+    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.totalPages) - lazyOffset;
 
     let unfetchable = [];
     // Unload Pages outside the upper `unloadHorizons`
-    for (let i = pages.length - 1; i >= maxUnloadHorizon; i -= 1) {
+    for (let i = this.totalPages - 1; i >= maxUnloadHorizon; i -= 1) {
       let page = pages[i];
       if (page) {
-        let [ unloadedPage = {} ] = pages.splice(page.offset, 1);
+        let [ unloadedPage = {} ] = pages.splice(i, 1);
         if (unloadedPage.isResolved) {
           unfetchable.push(unloadedPage);
         }
@@ -224,7 +225,7 @@ export default class Store {
     for (let i = maxUnloadHorizon - 1; i >= maxLoadHorizon; i -= 1) {
       let page = pages[i];
       if (page && !page.isSettled) {
-        pages.splice(page.offset, 1);
+        pages.splice(i, 1);
       }
     }
 
@@ -232,7 +233,7 @@ export default class Store {
     for (let i = minLoadHorizon - 1; i >= minUnloadHorizon; i -= 1) {
       let page = pages[i];
       if (page && !page.isSettled) {
-        pages.splice(page.offset, 1);
+        pages.splice(i, 1);
       }
     }
 
@@ -240,7 +241,7 @@ export default class Store {
     for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
       let page = pages[i];
       if (page) {
-        let [ unloadedPage = {} ] = pages.splice(page.offset, 1);
+        let [ unloadedPage = {} ] = pages.splice(i, 1);
         if (unloadedPage.isResolved) {
           unfetchable.push(unloadedPage);
         }
@@ -252,18 +253,19 @@ export default class Store {
 
   _requestHorizons() {
     let pages = this._pages;
-    const baseOffset = pages[0] && pages[0].offset || 0;
+    const lazyOffset = pages[0] && pages[0].offset || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
     let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
-    let minLoadHorizon = Math.max(minLoadPage, 0);
-    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+    let minLoadHorizon = Math.max(minLoadPage, 0) - lazyOffset;
+    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage) - lazyOffset;
 
     // Request and Fetch Records within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
       if (!pages[i]) {
-        let unrequested = new Page(i + baseOffset, this.pageSize);
-        pages.splice(unrequested.offset, 1, unrequested);
+        const offset = i + lazyOffset;
+        let unrequested = new Page(offset, this.pageSize);
+        pages.splice(i, 1, unrequested);
       }
     }
   }
