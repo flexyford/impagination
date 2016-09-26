@@ -147,6 +147,103 @@ describe("Dataset", function() {
           expect(records.length).to.equal(0);
         });
       });
+
+      describe("decrementing the readOffset below 0", function() {
+        beforeEach(function() {
+          dataset.setReadOffset(-5);
+        });
+        it("sets the readOffset to 0", function () {
+          expect(dataset.store.readOffset).to.equal(0);
+        });
+      });
+    });
+
+    describe("with less than one page loadHorizon", function() {
+      beforeEach(function() {
+        dataset = new Dataset({
+          pageSize: 10,
+          loadHorizon: 5,
+          fetch, unfetch, observe
+        });
+        dataset.setReadOffset(0);
+      });
+
+      it("requests one page of records", function() {
+        expect(dataset.store.length).to.equal(10);
+      });
+    });
+
+    describe("with less than two pages loadHorizon", function() {
+      beforeEach(function() {
+        dataset = new Dataset({
+          pageSize: 10,
+          loadHorizon: 15,
+          fetch, unfetch, observe
+        });
+        dataset.setReadOffset(0);
+      });
+
+      it("requests two pages of records", function() {
+        expect(dataset.store.length).to.equal(20);
+      });
+
+      describe("resolving all requests", function() {
+        beforeEach(function() {
+          return server.resolveAll();
+        });
+        it("has two resolved pages", function() {
+          const record = dataset.store._getRecord(0);
+          expect(record.isResolved).to.be.true;
+        });
+      });
+
+      describe("rejecting all requests", function() {
+        beforeEach(function(done) {
+          server.requests.forEach((request) => request.reject());
+          let finish = ()=> done();
+          return Promise.all(server.requests).then(finish).catch(finish);
+        });
+        it("has two rejected pages", function() {
+          expect(dataset.store.rejected.length).to.equal(2);
+          expect(dataset.store.length).to.equal(0);
+        });
+      });
+    });
+  });
+
+  describe.skip("setting readOffset to zero", function () {
+    beforeEach(function() {
+      this.dataset = new Dataset();
+      this.initialReadOffset = 0;
+    });
+    describe("with less than two pages loadHorizon", function() {
+      beforeEach(function() {
+        this.options.loadHorizon = 15;
+        this.dataset.init(this.options);
+        this.dataset.setReadOffset(this.initialReadOffset);
+      });
+
+
+      describe.skip("incrementing the readOffset to the next page", function() {
+        beforeEach(function() {
+          this.dataset.setReadOffset(10);
+          return this.server.resolveAll();
+        });
+        it("has three resolved pages", function() {
+          expect(this.recordAtPage(0).isResolved).to.be.true;
+          expect(this.recordAtPage(1).isResolved).to.be.true;
+          expect(this.recordAtPage(2).isResolved).to.be.true;
+        });
+      });
+      describe.skip("decrementing the readOffset below 0", function() {
+        beforeEach(function() {
+          this.dataset.setReadOffset(-5);
+          return this.server.resolveAll();
+        });
+        it("sets the readOffset to 0", function () {
+          expect(dataset.readOffset).to.equal(0);
+        });
+      });
     });
   });
 });

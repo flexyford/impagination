@@ -22,8 +22,11 @@ export default class Dataset {
   }
 
   // Public Functions
-  setReadOffset(readOffset) {
-    readOffset = Number(readOffset);
+  setReadOffset(offset) {
+    const readOffset =  Math.max(Number(offset), 0);
+    if (isNaN(readOffset)) {
+      throw new Error(`${offset} is not a Number`);
+    }
     if (readOffset !== this.readOffset) {
       this.store = this.store.setReadOffset(readOffset);
       this.store.unrequested.forEach(p => this._fetchPage(p));
