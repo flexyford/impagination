@@ -57,7 +57,7 @@ describe("Dataset", function() {
     };
 
     let unfetch =  (records, pageOffset)=> {
-      return unfetched = requests[pageOffset];
+      return unfetched = unfetched.concat(pageOffset);
     };
 
     let observe =  (_pages) => {
@@ -66,7 +66,7 @@ describe("Dataset", function() {
 
     beforeEach(function() {
       store = {};
-      unfetched = {};
+      unfetched = [];
 
       server = new Server();
       requests = server.requests;
@@ -239,6 +239,58 @@ describe("Dataset", function() {
           expect(dataset.store.resolved.length).to.equal(4);
         });
       });
+    });
+
+    describe("Taking Action on the Dataset", function() {
+      beforeEach(function() {
+        dataset = new Dataset({
+          pageSize: 10,
+          loadHorizon: 30,
+          fetch, unfetch, observe
+        });
+        dataset.setReadOffset(50);
+        return server.resolveAll();
+      });
+
+      it("has resolved pages", function() {
+        expect(dataset.store.resolved.length).to.equal(6);
+        expect(dataset.store.length).to.equal(80);
+      });
+
+      describe("unloading the dataset", function() {
+        beforeEach(function() {
+          // TODO: Should unload seet the readOffset and request all pages again?
+          dataset.unload();
+        });
+
+        it("maintains the total number of records", function () {
+          expect(dataset.store.pending.length).to.equal(6);
+          expect(dataset.store.length).to.equal(80);
+        });
+
+        it("unfetches a bunch of pages", function () {
+          expect(unfetched.length).to.equal(6);
+        });
+      });
+
+      describe("resetting the dataset", function() {
+        beforeEach(function() {
+          dataset.reset();
+        });
+
+        it("resets the total number of records", function () {
+          expect(dataset.store.length).to.equal(0);
+          expect(dataset.store.resolved.length).to.equal(0);
+          expect(dataset.store.pending.length).to.equal(0);
+          expect(dataset.store.unrequested.length).to.equal(0);
+        });
+      });
+
+      describe("refiltering the dataset", function() {
+        // TODO: Filtering the Dataset
+      });
+
+
     });
 
     describe("Statistics ", function() {

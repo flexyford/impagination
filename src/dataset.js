@@ -37,9 +37,11 @@ export default class Dataset {
 
   // Applies the filter to all possible Resolved Pages
   refilter() {
-    this.store = new Store(this.store, {
-      _pages: undefined,
-      readOffset: undefined
+    this.store = new Store({
+      pageSize: this.store.pageSize,
+      loadHorizon: this.store.loadHorizon,
+      unloadHorizon: this.store.unloadHorizon,
+      stats: this.store.stats
     });
 
     this.observe(this.store);
@@ -47,22 +49,35 @@ export default class Dataset {
 
   // Unload all pages, 'unfetch' every unloaded page
   unload() {
-    this.store = new Store(this.store, {
-      _pages: undefined,
-      readOffset: undefined
-    });
+    let readOffset = this.store.readOffset;
+
+    // Unfetch all the pages
+    this.store.resolved.forEach(p => this._unfetchPage(p));
+
+    this.store = new Store({
+      pageSize: this.store.pageSize,
+      loadHorizon: this.store.loadHorizon,
+      unloadHorizon: this.store.unloadHorizon,
+      stats: this.store.stats
+    }).setReadOffset(readOffset);
+
+    this.store.unrequested.forEach(p => this._fetchPage(p));
+    this.store.unfetchable.forEach(p => this._unfetchPage(p));
 
     this.observe(this.store);
   }
 
   // Destroy all pages, does not `unfetch` any destroyed page
   reset() {
-    this.store = new Store(this.store, {
-      _pages: undefined,
-      readOffset: undefined
+    this.store = new Store({
+      pageSize: this.store.pageSize,
+      loadHorizon: this.store.loadHorizon,
+      unloadHorizon: this.store.unloadHorizon,
+      stats: this.store.stats
     });
 
     this.observe(this.store);
+
   }
 
   _fetchPage(fetchable) {
