@@ -138,7 +138,6 @@ describe("Dataset", function() {
 
         it("rejects the page", function() {
           expect(dataset.store.rejected.length).to.equal(1);
-          expect(dataset.store.totalPages).to.equal(1);
         });
 
         it("does not have any records", function() {
@@ -224,7 +223,6 @@ describe("Dataset", function() {
 
       it("has many unrequested and pending pages", function() {
         expect(dataset.store.length).to.equal(70);
-        expect(dataset.store.totalPages).to.equal(7);
         expect(dataset.store.pending.length).to.equal(4);
       });
 
@@ -234,7 +232,6 @@ describe("Dataset", function() {
         });
         it("has many unrequested and resolved pages", function() {
           expect(dataset.store.length).to.equal(70);
-          expect(dataset.store.totalPages).to.equal(7);
           expect(dataset.store.pending.length).to.equal(0);
           expect(dataset.store.resolved.length).to.equal(4);
         });
@@ -314,8 +311,8 @@ describe("Dataset", function() {
 
         it("sets total pages", function() {
           // TODO: Why is this set already?
-          // expect(dataset.store.stats.totalPages).to.equal(undefined);
-          expect(dataset.store.length).to.equal(10);
+          expect(dataset.store.stats.totalPages).to.equal(10);
+          expect(dataset.store.length).to.equal(100);
         });
 
         describe("resolving the request with totalPages stats", function() {

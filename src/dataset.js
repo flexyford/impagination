@@ -29,9 +29,10 @@ export default class Dataset {
     }
     if (readOffset !== this.readOffset) {
       this.store = this.store.setReadOffset(readOffset);
-      this.store.unrequested.forEach(p => this._fetchPage(p));
-      this.store.unfetchable.forEach(p => this._unfetchPage(p));
       this.observe(this.store);
+
+      this._fetchPages(this.store.unrequested);
+      this._unfetchPages(this.store.unfetchable);
     }
   }
 
@@ -52,7 +53,7 @@ export default class Dataset {
     let readOffset = this.store.readOffset;
 
     // Unfetch all the pages
-    this.store.resolved.forEach(p => this._unfetchPage(p));
+    this._unfetchPages(this.store.resolved);
 
     this.store = new Store({
       pageSize: this.store.pageSize,
@@ -61,10 +62,10 @@ export default class Dataset {
       stats: this.store.stats
     }).setReadOffset(readOffset);
 
-    this.store.unrequested.forEach(p => this._fetchPage(p));
-    this.store.unfetchable.forEach(p => this._unfetchPage(p));
-
     this.observe(this.store);
+
+    this._fetchPages(this.store.unrequested);
+    this._unfetchPages(this.store.unfetchable);
   }
 
   // Destroy all pages, does not `unfetch` any destroyed page
@@ -80,21 +81,24 @@ export default class Dataset {
 
   }
 
-  _fetchPage(fetchable) {
-    // TODO: Allow `fetchable` be an array of pages
+  _fetchPages(fetchable) {
     let stats = this.store.stats;
     this.observe(this.store = this.store.fetch(fetchable));
 
-    return this.fetch.call(this, fetchable.offset, this.store.pageSize, stats).then((records = []) => {
-      return this.observe(this.store = this.store.resolve(records, fetchable.offset, stats));
-    }).catch((error = {}) => {
-      return this.observe(this.store = this.store.reject(error, fetchable, stats));
+    fetchable.forEach((page) => {
+      return this.fetch.call(this, page.offset, this.store.pageSize, stats).then((records = []) => {
+        return this.observe(this.store = this.store.resolve(records, page.offset, stats));
+      }).catch((error = {}) => {
+        return this.observe(this.store = this.store.reject(error, page, stats));
+      });
     });
   }
 
-  _unfetchPage(unfetchable) {
-    // TODO: Allow `unfetchable` to be an array of pages
+  _unfetchPages(unfetchable) {
     this.observe(this.store = this.store.unfetch(unfetchable));
-    this.unfetch.call(this, unfetchable.records, unfetchable.offset);
+
+    unfetchable.forEach((page) => {
+      this.unfetch.call(this, page.records, page.offset);
+    });
   }
 };

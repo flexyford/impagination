@@ -1,4 +1,5 @@
 import Page from './page';
+import cached from './cache-properties';
 var AVLTree = require('binary-search-tree').AVLTree;
 
 // Unrequested Pages do not show up in Pages Interface
@@ -7,7 +8,6 @@ export default class Store {
     Object.assign(this, {
       _pages: new AVLTree({unique: true}),
       _unfetchablePages: [],
-      length: 0,
       pageSize: 0,
       loadHorizon: previous.pageSize || 0,
       unloadHorizon: Infinity,
@@ -24,12 +24,7 @@ export default class Store {
       throw new Error('created Pages with unloadHorizon less than loadHorizon');
     }
 
-    // TODO: Is this really a property we need?
-    this.totalPages = this._calcPagesLength();
-
     this._updateHorizons();
-
-    this.length = this._calcRecordsLength();
   }
 
   get pages() {
@@ -149,35 +144,23 @@ export default class Store {
     return records;
   }
 
-  // Private API
-  _calcPagesLength() {
-    let offset = this.readOffset;
+  get length() {
+    let lastPageOffset = this._pages.tree.getMaxKeyDescendant().key;
+    let virtualTotalPages = lastPageOffset + 1 || 0;
+    let total = Math.max(virtualTotalPages, this.stats.totalPages || 0);
 
-    if (offset === null || offset === undefined) return 0;
-
-    const baseOffset = this.pages[0] && this.pages[0].offset || 0;
-
-    let maxLoadPage = Math.ceil((offset + this.loadHorizon) / this.pageSize);
-    let maxUnloadPage = Math.ceil((offset + this.unloadHorizon) / this.pageSize);
-    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
-    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.totalPages);
-
-    return Math.max(this.pages.length + baseOffset, maxLoadHorizon, this.stats.totalPages || 0);
-  }
-
-  _calcRecordsLength() {
     return this.resolved.reduce((length, page) => {
       return length - (this.pageSize - page.records.length);
-    }, (this.totalPages - this.rejected.length) * this.pageSize);
+    }, (total - this.rejected.length) * this.pageSize);
   }
 
-  _pageExists(offset) {
-    return !!this._pages.search(offset).length;
+  // Private API
+  _findPage(offset) {
+    return this._pages.search(offset)[0];
   }
 
   _getPage(offset) {
-    let page = this._pages.search(offset)[0];
-    return page || new Page(offset, this.pageSize);
+    return this._findPage(offset) || new Page(offset, this.pageSize);
   }
 
   _getRecord(index) {
@@ -213,8 +196,7 @@ export default class Store {
   }
 
   _unloadHorizons() {
-    const node = this._pages.tree.getMinKeyDescendant();
-    const lazyOffset = node.key || 0;
+    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
     let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
@@ -224,12 +206,12 @@ export default class Store {
     let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
     let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
     let minUnloadHorizon = Math.max(minUnloadPage, 0);
-    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, this.totalPages);
+    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, maxPageOffset + 1);
 
     let unfetchable = [];
     // Unload Pages outside the upper `unloadHorizons`
-    for (let i = this.totalPages - 1; i >= maxUnloadHorizon; i -= 1) {
-      let page = this._pages.search(i)[0];
+    for (let i = maxPageOffset; i >= maxUnloadHorizon; i -= 1) {
+      let page = this._findPage(i);
       if (page) {
         this._pages.delete(i);
         if (page.isResolved) {
@@ -240,7 +222,7 @@ export default class Store {
 
     // Unload Unrequested Pages outside the upper `loadHorizons`
     for (let i = maxUnloadHorizon - 1; i >= maxLoadHorizon; i -= 1) {
-      let page = this._pages.search(i)[0];
+      let page = this._findPage(i);
       if (page && !page.isSettled) {
         this._pages.delete(i);
       }
@@ -248,7 +230,7 @@ export default class Store {
 
     // Unload Unrequested Pages outside the lower `loadHorizons`
     for (let i = minLoadHorizon - 1; i >= minUnloadHorizon; i -= 1) {
-      let page = this._pages.search(i)[0];
+      let page = this._findPage(i);
       if (page && !page.isSettled) {
         this._pages.delete(i);
       }
@@ -256,7 +238,7 @@ export default class Store {
 
     // Unload Pages outside the lower `unloadHorizons`
     for (let i = minUnloadHorizon - 1; i >= 0; i -= 1) {
-      let page = this._pages.search(i)[0];
+      let page = this._findPage(i);
       if (page) {
         this._pages.delete(i);
         if (page.isResolved) {
@@ -270,18 +252,20 @@ export default class Store {
 
   _requestHorizons() {
     const node = this._pages.tree.getMinKeyDescendant();
-    const lazyOffset = node.key || 0;
+    const baseOffset = node.key || 0;
 
     let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
     let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
-    let minLoadHorizon = Math.max(minLoadPage, 0) - lazyOffset;
+    let minLoadHorizon = Math.max(minLoadPage, 0) - baseOffset;
     let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
 
     // Request Pages within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
-      if (!this._pageExists(i)) {
+      if (!this._findPage(i)) {
         this._pages.insert(i, new Page(i, this.pageSize));
       }
     }
   }
 };
+
+cached(Store);

@@ -14,10 +14,8 @@ describe("Pages Interface Store ", function() {
       rejected: 0
     }, expected);
 
-    let numPages = Math.ceil((store.readOffset + store.loadHorizon) / store.pageSize) || 0;
     let numRequestedPages = expected.pending + expected.resolved + expected.rejected;
 
-    expect(store.totalPages).to.equal(numPages);
     expect(store.requested.length).to.equal(numRequestedPages);
     expect(store.unfetchable.length).to.equal(expected.unfetchable);
     expect(store.unrequested.length).to.equal(expected.unrequested);
@@ -283,7 +281,6 @@ describe("Pages Interface Store ", function() {
       });
 
       it("requests pages", function() {
-        expect(store.totalPages).to.equal(10);
         expect(store.unrequested.length).to.equal(1);
         expect(store.length).to.equal(100);
       });
