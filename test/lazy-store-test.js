@@ -287,9 +287,8 @@ describe("Pages Interface Store ", function() {
 
       describe("setting the readOffset out of bounds", function() {
         beforeEach(function() {
-          store.unrequested.forEach((unrequestedPage) => {
-            store = store.fetch(unrequestedPage);
-          });
+          store.fetch(store.unrequested);
+
           store.pending.forEach((pendingPage) => {
             let records = createRecords(store.pageSize, pendingPage.offset);
             store = store.resolve(records, pendingPage.offset);

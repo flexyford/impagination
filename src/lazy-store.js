@@ -75,8 +75,6 @@ export default class Store {
   }
 
   fetch(fetchable = []) {
-    if(!Array.isArray(fetchable)) { fetchable = [ fetchable ]; }
-
     let _pages = new AVLTree({ unique: true });
 
     this.pages.forEach((p) => {
@@ -88,7 +86,6 @@ export default class Store {
   }
 
   unfetch(unfetchable = []) {
-    if(!Array.isArray(unfetchable)) { unfetchable = [ unfetchable ]; }
     return new Store(this, {
       _unfetchablePages: this._unfetchablePages.filter(p => !unfetchable.includes(p))
     });
