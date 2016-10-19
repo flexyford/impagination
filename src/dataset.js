@@ -27,12 +27,13 @@ export default class Dataset {
     if (isNaN(readOffset)) {
       throw new Error(`${offset} is not a Number`);
     }
-    if (readOffset !== this.readOffset) {
+    if (readOffset !== this.store.readOffset) {
       this.store = this.store.setReadOffset(readOffset);
-      this.observe(this.store);
 
       this._fetchPages(this.store.unrequested);
       this._unfetchPages(this.store.unfetchable);
+
+      this.observe(this.store);
     }
   }
 
@@ -62,10 +63,10 @@ export default class Dataset {
       stats: this.store.stats
     }).setReadOffset(readOffset);
 
-    this.observe(this.store);
-
     this._fetchPages(this.store.unrequested);
     this._unfetchPages(this.store.unfetchable);
+
+    this.observe(this.store);
   }
 
   // Destroy all pages, does not `unfetch` any destroyed page
@@ -78,13 +79,12 @@ export default class Dataset {
     });
 
     this.observe(this.store);
-
   }
 
   _fetchPages(fetchable) {
-    let stats = this.store.stats;
-    this.observe(this.store = this.store.fetch(fetchable));
+    this.store = this.store.fetch(fetchable);
 
+    let stats = this.store.stats;
     fetchable.forEach((page) => {
       return this.fetch.call(this, page.offset, this.store.pageSize, stats).then((records = []) => {
         return this.observe(this.store = this.store.resolve(records, page.offset, stats));
@@ -95,7 +95,7 @@ export default class Dataset {
   }
 
   _unfetchPages(unfetchable) {
-    this.observe(this.store = this.store.unfetch(unfetchable));
+    this.store = this.store.unfetch(unfetchable);
 
     unfetchable.forEach((page) => {
       this.unfetch.call(this, page.records, page.offset);
