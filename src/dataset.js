@@ -37,18 +37,6 @@ export default class Dataset {
     }
   }
 
-  // Applies the filter to all possible Resolved Pages
-  refilter() {
-    this.store = new Store({
-      pageSize: this.store.pageSize,
-      loadHorizon: this.store.loadHorizon,
-      unloadHorizon: this.store.unloadHorizon,
-      stats: this.store.stats
-    });
-
-    this.observe(this.store);
-  }
-
   // Unload all pages, 'unfetch' every unloaded page
   unload() {
     let readOffset = this.store.readOffset;

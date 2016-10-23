@@ -152,9 +152,7 @@ export default class Store {
     let virtualTotalPages = lastPageOffset + 1 || 0;
     let total = Math.max(virtualTotalPages, this.stats.totalPages || 0);
 
-    return this.resolved.reduce((length, page) => {
-      return length - (this.pageSize - page.records.length);
-    }, (total - this.rejected.length) * this.pageSize);
+    return (total - this.rejected.length) * this.pageSize;
   }
 
   // Private API
@@ -169,35 +167,29 @@ export default class Store {
   _getRecord(index) {
     if(index >= this.length) return null;
 
-    const pageIndex = Math.floor(index / this.pageSize);
-    const firstResolvedPage = this.resolved && this.resolved[0];
+    let virtualPageIndex = Math.floor(index / this.pageSize);
+    let firstResolvedPage = this.resolved && this.resolved[0];
+    let pageMaybeResolved = firstResolvedPage && virtualPageIndex >= firstResolvedPage.offset;
 
-    const recordIsUnresolved = !firstResolvedPage || pageIndex < firstResolvedPage.offset;
-
-    let currentPage, recordIndex;
-
-    if (recordIsUnresolved) {
-      currentPage = this._getPage(pageIndex);
-      recordIndex = index % this.pageSize;
-    } else {
-      currentPage = firstResolvedPage;
-      recordIndex = index - (currentPage.offset * this.pageSize);
-
-      // TODO: This while loops assumes filtering exists
-      while(recordIndex >= currentPage.records.length) {
-        recordIndex -= currentPage.records.length;
-        currentPage = this._getPage(currentPage.offset + 1);
-      }
+    if (pageMaybeResolved) {
+      let actaulRecordOffset = index - (firstResolvedPage.offset * this.pageSize);
+      let actualPageOffset = Math.floor(actaulRecordOffset / this.pageSize);
+      virtualPageIndex = firstResolvedPage.offset + actualPageOffset;
     }
 
-    return currentPage.records[recordIndex];
+    return this._getPage(virtualPageIndex).records[index % this.pageSize];
   }
 
   _updateHorizons() {
     this._unloadHorizons();
     this._requestHorizons();
 
-    let index = (this._pages.tree.getMinKeyDescendant().key || 0) * this.pageSize;
+    let node = this._pages.tree.getMinKeyDescendant();
+    let minPage = this._getPage(node.key || 0);
+
+    let index = minPage.offset * this.pageSize;
+
+    // This Is Broken For Filtering?
     this.pages.forEach((p) => {
       for(let i = 0; i < p.records.length; i++) {
         let offset = index++;
@@ -211,15 +203,8 @@ export default class Store {
   _unloadHorizons() {
     let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
 
-    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
-    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
-    let minLoadHorizon = Math.max(minLoadPage, 0);
-    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
-
-    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
-    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
-    let minUnloadHorizon = Math.max(minUnloadPage, 0);
-    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, maxPageOffset + 1);
+    let { minLoadHorizon, maxLoadHorizon } = this.getLoadHorizons();
+    let { minUnloadHorizon, maxUnloadHorizon } = this.getUnloadHorizons();
 
     let unfetchable = [];
     // Unload Pages outside the upper `unloadHorizons`
@@ -264,10 +249,7 @@ export default class Store {
   }
 
   _requestHorizons() {
-    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
-    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
-    let minLoadHorizon = Math.max(minLoadPage, 0);
-    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+    let { minLoadHorizon, maxLoadHorizon } = this.getLoadHorizons();
 
     // Request Pages within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
@@ -275,6 +257,28 @@ export default class Store {
         this._pages.insert(i, new Page(i, this.pageSize));
       }
     }
+  }
+
+  getLoadHorizons() {
+    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
+    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
+
+    let minLoadHorizon = Math.max(minLoadPage, 0);
+    let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
+
+    return { minLoadHorizon, maxLoadHorizon };
+  }
+
+  getUnloadHorizons() {
+    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
+
+    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
+    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+
+    let minUnloadHorizon = Math.max(minUnloadPage, 0);
+    let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, maxPageOffset + 1);
+
+    return { minUnloadHorizon, maxUnloadHorizon };
   }
 };
 

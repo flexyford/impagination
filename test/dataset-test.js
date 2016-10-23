@@ -238,6 +238,39 @@ describe("Dataset", function() {
       });
     });
 
+    describe.skip("Filtering the Dataset", function() {
+      beforeEach(function() {
+        let filter = (record) => {
+          // Filter only Odd Indexed Records
+          return record && (parseInt(record.name.substr(7)) % 2);
+        };
+        dataset = new Dataset({
+          pageSize: 10,
+          loadHorizon: 30,
+          fetch, filter, unfetch, observe
+        });
+        dataset.setReadOffset(0);
+      });
+
+      it("initialies the total length", function() {
+        expect(dataset.store.pending.length).to.equal(3);
+        expect(dataset.store.length).to.equal(30);
+      });
+
+      describe("resolving all pages", function() {
+        beforeEach(function() {
+          return server.resolveAll();
+        });
+
+        it("filters reolved records", function() {
+          expect(dataset.store.resolved.length).to.equal(3);
+          expect(dataset.store.pending.length).to.equal(1);
+          expect(dataset.store.length).to.equal(25);
+        });
+      });
+
+    });
+
     describe("Taking Action on the Dataset", function() {
       beforeEach(function() {
         dataset = new Dataset({
@@ -254,9 +287,8 @@ describe("Dataset", function() {
         expect(dataset.store.length).to.equal(80);
       });
 
-      describe("unloading the dataset", function() {
+      describe.skip("unloading the dataset", function() {
         beforeEach(function() {
-          // TODO: Should unload seet the readOffset and request all pages again?
           dataset.unload();
         });
 
@@ -270,7 +302,7 @@ describe("Dataset", function() {
         });
       });
 
-      describe("resetting the dataset", function() {
+      describe.skip("resetting the dataset", function() {
         beforeEach(function() {
           dataset.reset();
         });
@@ -283,11 +315,18 @@ describe("Dataset", function() {
         });
       });
 
-      describe("refiltering the dataset", function() {
-        // TODO: Filtering the Dataset
+      describe.skip("refiltering the dataset", function() {
+        beforeEach(function() {
+          // Mutate a Record on the Dataset
+
+          // Refilter the Dataset
+        });
+
+        it("filters out the mutated record ", function() {
+
+        });
+
       });
-
-
     });
 
     describe("Statistics ", function() {
