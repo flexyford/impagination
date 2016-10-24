@@ -10,3 +10,4 @@ require('binary-search-tree');
 
 require("./dataset-test.js");
 require("./lazy-store-test.js");
+require("./page-tree.js");

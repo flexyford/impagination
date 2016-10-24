@@ -71,12 +71,10 @@ describe("Pages Interface Store ", function() {
 
         it("has empty unrequested records", function() {
           const readOffset = store.readOffset;
-          const records = store.slice();
-          const record = records[readOffset];
+          const record = store[readOffset];
 
           expect(readOffset).to.equal(0);
           expect(store.length).to.equal(10);
-          expect(records.length).to.equal(10);
 
           expect(record.isRequested).to.be.false;
           expect(record.isPending).to.be.false;
@@ -97,12 +95,10 @@ describe("Pages Interface Store ", function() {
 
           it("has more unrequested records", function() {
             const readOffset = store.readOffset;
-            const records = store.slice();
-            const record = records[readOffset];
+            const record = store[readOffset];
 
             expect(readOffset).to.equal(35);
             expect(store.length).to.equal(50);
-            expect(records.length).to.equal(50);
 
             expect(record.isRequested).to.be.false;
             expect(record.isPending).to.be.false;
@@ -124,12 +120,10 @@ describe("Pages Interface Store ", function() {
 
           it("has pending records", function() {
             const readOffset = store.readOffset;
-            const records = store.slice();
-            const record = records[readOffset];
+            const record = store[readOffset];
 
             expect(readOffset).to.equal(0);
             expect(store.length).to.equal(10);
-            expect(records.length).to.equal(10);
 
             expect(record.isRequested).to.be.true;
             expect(record.isPending).to.be.true;

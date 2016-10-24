@@ -1,12 +1,12 @@
 import Page from './page';
+import PageTree from './page-tree';
 import cached from './cache-properties';
-import { AVLTree } from 'binary-search-tree';
 
 // Unrequested Pages do not show up in Pages Interface
 export default class Store {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
-      _pages: new AVLTree({unique: true}),
+      _pages: new PageTree(),
       _unfetchablePages: [],
       pageSize: 0,
       loadHorizon: previous.pageSize || 0,
@@ -90,12 +90,14 @@ export default class Store {
   fetch(fetchable = []) {
     if (!fetchable.length) { return this; }
 
-    let _pages = new AVLTree({ unique: true });
+    let _pages = new PageTree();
 
     this.pages.forEach((p) => {
       const page = fetchable.includes(p) ? p.request() : p;
       _pages.insert(page.offset, page);
     });
+
+    this._pages.update();
 
     return new Store(this, { _pages });
   }
@@ -108,12 +110,14 @@ export default class Store {
   }
 
   resolve(records, offset, stats) {
-    let _pages = new AVLTree({ unique: true });
+    let _pages = new PageTree();
 
     this.pages.forEach((p) => {
       let page = p.isPending && p.offset === offset ? p.resolve(records) : p;
       _pages.insert(p.offset, page);
     });
+
+    this._pages.update();
 
     return new Store(this, {
       _pages,
@@ -122,12 +126,14 @@ export default class Store {
   }
 
   reject(error, { offset }, stats) {
-    let _pages = new AVLTree({ unique: true });
+    let _pages = new PageTree();
 
     this.pages.forEach((p) => {
       let page = p.isPending && p.offset === offset ? p.reject(error) : p;
       _pages.insert(p.offset, page);
     });
+
+    this._pages.update();
 
     return new Store(this, {
       _pages,
@@ -139,6 +145,10 @@ export default class Store {
     return Array.prototype.slice.apply(this, arguments);
   }
 
+  filter() {
+    return Array.prototype.filter.apply(this, arguments);
+  }
+
   map() {
     return Array.prototype.map.apply(this, arguments);
   }
@@ -148,8 +158,10 @@ export default class Store {
   }
 
   get length() {
-    let lastPageOffset = this._pages.tree.getMaxKeyDescendant().key;
-    let virtualTotalPages = lastPageOffset + 1 || 0;
+    let node = this._pages.tree.getMaxKeyDescendant();
+    let offset = node.key && node.key.page;
+    let virtualTotalPages = offset + 1 || 0;
+
     let total = Math.max(virtualTotalPages, this.stats.totalPages || 0);
 
     return (total - this.rejected.length) * this.pageSize;
@@ -157,7 +169,7 @@ export default class Store {
 
   // Private API
   _findPage(offset) {
-    return this._pages.search(offset)[0];
+    return this._pages.searchPage(offset).data;
   }
 
   _getPage(offset) {
@@ -165,31 +177,22 @@ export default class Store {
   }
 
   _getRecord(index) {
-    if(index >= this.length) return null;
-
-    let virtualPageIndex = Math.floor(index / this.pageSize);
-    let firstResolvedPage = this.resolved && this.resolved[0];
-    let pageMaybeResolved = firstResolvedPage && virtualPageIndex >= firstResolvedPage.offset;
-
-    if (pageMaybeResolved) {
-      let actaulRecordOffset = index - (firstResolvedPage.offset * this.pageSize);
-      let actualPageOffset = Math.floor(actaulRecordOffset / this.pageSize);
-      virtualPageIndex = firstResolvedPage.offset + actualPageOffset;
-    }
-
-    return this._getPage(virtualPageIndex).records[index % this.pageSize];
+    return this._pages.searchRecord(index);
   }
 
   _updateHorizons() {
     this._unloadHorizons();
     this._requestHorizons();
 
+    this._pages.update();
+
     let node = this._pages.tree.getMinKeyDescendant();
-    let minPage = this._getPage(node.key || 0);
+    let offset = node.key && node.key.page || 0;
+    let minPage = this._getPage(offset);
 
     let index = minPage.offset * this.pageSize;
 
-    // This Is Broken For Filtering?
+    // Add index keys so we can say access values by array[index]
     this.pages.forEach((p) => {
       for(let i = 0; i < p.records.length; i++) {
         let offset = index++;
@@ -198,6 +201,9 @@ export default class Store {
         }});
       }
     });
+
+    // Here is where we can compute each page's starting actual index
+
   }
 
   _unloadHorizons() {
@@ -260,8 +266,11 @@ export default class Store {
   }
 
   getLoadHorizons() {
-    let minLoadPage = Math.floor((this.readOffset  - this.loadHorizon) / this.pageSize);
-    let maxLoadPage = Math.ceil((this.readOffset  + this.loadHorizon) / this.pageSize);
+    let min = this.readOffset - this.loadHorizon;
+    let max = this.readOffset  + this.loadHorizon;
+
+    let minLoadPage = Math.floor(min / this.pageSize);
+    let maxLoadPage = Math.ceil(max / this.pageSize);
 
     let minLoadHorizon = Math.max(minLoadPage, 0);
     let maxLoadHorizon = Math.min(this.stats.totalPages || Infinity, maxLoadPage);
@@ -270,10 +279,13 @@ export default class Store {
   }
 
   getUnloadHorizons() {
-    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
+    let min = this.readOffset - this.unloadHorizon;
+    let max = this.readOffset  + this.unloadHorizon;
 
-    let minUnloadPage = Math.floor((this.readOffset - this.unloadHorizon) / this.pageSize);
-    let maxUnloadPage = Math.ceil((this.readOffset  + this.unloadHorizon) / this.pageSize);
+    let minUnloadPage = Math.floor(min / this.pageSize);
+    let maxUnloadPage = Math.ceil(max / this.pageSize);
+
+    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
 
     let minUnloadHorizon = Math.max(minUnloadPage, 0);
     let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, maxPageOffset + 1);
