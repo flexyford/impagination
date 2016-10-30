@@ -143,8 +143,8 @@ export default class Store {
     });
   }
 
-  filterPages(filter) {
-    let _this = new Store(this, { filter });
+  refilter(filter) {
+    let _this = filter ? new Store(this, { filter }) : this;
 
     let _pages = new PageTree();
 
@@ -158,21 +158,47 @@ export default class Store {
     return new Store(_this, { _pages });
   }
 
-  slice() {
-    return Array.prototype.slice.apply(this, arguments);
+  // Mutator Methods
+
+  // splice:
+  // Can only mutate records on page containing record at index `start`
+  // Returns new store with mutated records
+  splice(start, deleteCount, ...items) {
+    try {
+      let record = this.getRecord(start);
+      let index = record.page.unfilteredData.indexOf(record.content);
+      record.page.unfilteredData.splice(index, deleteCount, ...items);
+    } catch(err) {
+      throw Error(`Impagination could not find resolved page for record at index ${index}`);
+    }
+    return this.refilter();
   }
 
-  filter() {
-    return Array.prototype.filter.apply(this, arguments);
+  // Accessor Methods
+  concat() { return Array.prototype.concat.apply(this, arguments); }
+  includes() { return Array.prototype.includes.apply(this, arguments); }
+  join() { return Array.prototype.join.apply(this, arguments); }
+  slice() { return Array.prototype.slice.apply(this, arguments); }
+  toString() { return Array.prototype.toString.apply(this, arguments); }
+  toLocaleString() {
+    return Array.prototype.toLocaleString.apply(this, arguments);
   }
+  indexOf() { return Array.prototype.indexOf.apply(this, arguments); }
+  lastIndexOf() { return Array.prototype.lastIndexOf.apply(this, arguments); }
 
-  map() {
-    return Array.prototype.map.apply(this, arguments);
-  }
 
-  reduce() {
-    return Array.prototype.reduce.apply(this, arguments);
-  }
+  // Iteration Methods
+  forEach() { return Array.prototype.forEach.apply(this, arguments); }
+  every() { return Array.prototype.every.apply(this, arguments); }
+  some() { return Array.prototype.some.apply(this, arguments); }
+  filter() { return Array.prototype.filter.apply(this, arguments);  }
+  find() { return Array.prototype.find.apply(this, arguments);  }
+  findIndex() { return Array.prototype.findIndex.apply(this, arguments); }
+  keys() { return Array.prototype.keys.apply(this, arguments);  }
+  map() { return Array.prototype.map.apply(this, arguments); }
+  reduce() { return Array.prototype.reduce.apply(this, arguments); }
+  reduceRight() { return Array.prototype.reduceRight.apply(this, arguments); }
+  values() { return Array.prototype.values.apply(this, arguments); }
 
   get length() {
     let node = this._pages.tree.getMaxKeyDescendant();

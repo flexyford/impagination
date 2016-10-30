@@ -76,48 +76,38 @@ export default class Dataset {
   post(data, index) {
     index = index || this.store.readOffset;
     try {
-      let record = this.store.getRecord(index);
-      let unfilteredData = record.page.unfilteredData;
-      record.page.unfilteredData = unfilteredData.reduce((_data, content) => {
-        return (record.content === content) ?
-          _data.concat(data, content) : _data.concat(content);
-      }, []);
+      this.store = this.store.splice(index, 0, data);
     } catch(err) {
       console.error(`Error: Impagination did not POST ${data}. Could not find resolved page for record at index ${index}`);
     }
-    this.refilter();
+    this.observe(this.store);
   }
 
   put(data, index) {
     index = index || this.store.readOffset;
     try {
       let record = this.store.getRecord(index);
-      Object.assign(record.page.data[record.index], data);
+      let item = Object.assign({}, record.page.data[record.index], data);
+      this.store = this.store.splice(index, 1, item);
     } catch(err) {
       console.error(`Error: Impagination did not PUT ${data}. Could not find resolved page for record at index ${index}`);
     }
-    this.refilter();
+    this.observe(this.store);
   }
 
   delete(index) {
     index = index || this.store.readOffset;
     try {
-      let record = this.store.getRecord(index);
-      let unfilteredData = record.page.unfilteredData;
-      record.page.unfilteredData = unfilteredData.reduce((_data, content) => {
-        return (record.content !== content) ?
-          _data.concat(content) : _data;
-      }, []);
+      this.store = this.store.splice(index, 1);
     } catch(err) {
-      console.error(`Error: Impagination did not PUT ${data}. Could not find resolved page for record at index ${index}`);
+      console.error(`Error: Impagination did not DELETE record at ${index}. Could not find resolved page for record at index ${index}`);
     }
-    this.refilter();
+    this.observe(this.store);
   }
 
-  refilter(filter) {
-    filter = filter || this.store.filter;
-    this.store = this.store.filterPages(filter);
-
+  refilter(filterCallback) {
+    filterCallback = filterCallback || this.store.filter;
+    this.store = this.store.refilter(filterCallback);
     this.observe(this.store);
   }
 
