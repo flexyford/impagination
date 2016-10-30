@@ -76,7 +76,7 @@ export default class Dataset {
   post(data, index) {
     index = index || this.store.readOffset;
     try {
-      let record = this.store._getRecord(index);
+      let record = this.store.getRecord(index);
       let unfilteredData = record.page.unfilteredData;
       record.page.unfilteredData = unfilteredData.reduce((_data, content) => {
         return (record.content === content) ?
@@ -91,7 +91,7 @@ export default class Dataset {
   put(data, index) {
     index = index || this.store.readOffset;
     try {
-      let record = this.store._getRecord(index);
+      let record = this.store.getRecord(index);
       Object.assign(record.page.data[record.index], data);
     } catch(err) {
       console.error(`Error: Impagination did not PUT ${data}. Could not find resolved page for record at index ${index}`);
@@ -102,7 +102,7 @@ export default class Dataset {
   delete(index) {
     index = index || this.store.readOffset;
     try {
-      let record = this.store._getRecord(index);
+      let record = this.store.getRecord(index);
       let unfilteredData = record.page.unfilteredData;
       record.page.unfilteredData = unfilteredData.reduce((_data, content) => {
         return (record.content !== content) ?

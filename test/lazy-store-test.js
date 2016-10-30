@@ -298,11 +298,11 @@ describe("Pages Interface Store ", function() {
           it("has a new unrequested page", function() {
             expect(store.unrequested.length).to.equal(1);
             expect(store.unrequested[0].offset).to.equal(9);
-            expect(store._getPage(9).offset).to.equal(9);
+            expect(store.getPage(9).offset).to.equal(9);
           });
           it("does not have a record at the readOffset", function() {
-            let record = store._getRecord(readOffset);
-            expect(record).to.equal(null);
+            let record = store.getRecord(readOffset);
+            expect(record).to.have.property('content', null);
           });
         });
       });

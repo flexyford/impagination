@@ -192,7 +192,7 @@ describe("Dataset", function() {
           return server.resolveAll().then(finish).catch(finish);
         });
         it("has two resolved pages", function() {
-          const record = dataset.store._getRecord(0);
+          const record = dataset.store.getRecord(0);
           expect(record.isResolved).to.be.true;
         });
       });
@@ -266,7 +266,7 @@ describe("Dataset", function() {
           expect(dataset.store.resolved.length).to.equal(3);
           expect(dataset.store.length).to.equal(15);
 
-          // TODO: Greedy Fetching
+          // TODO: Greedy Fetching?
           // These are the results if fetching eagerly
           // expect(dataset.store.pending.length).to.equal(2);
           // expect(dataset.store.length).to.equal(35);
@@ -281,7 +281,7 @@ describe("Dataset", function() {
             expect(dataset.store.resolved.length).to.equal(3);
             expect(dataset.store.length).to.equal(16);
 
-            // TODO: Greedy Fetching
+            // TODO: Greedy Fetching?
             // These are the results if fetching eagerly
             // expect(dataset.store.pending.length).to.equal(2);
             // expect(dataset.store.length).to.equal(35);
@@ -297,7 +297,7 @@ describe("Dataset", function() {
             expect(dataset.store.resolved.length).to.equal(3);
             expect(dataset.store.length).to.equal(14);
 
-            // TODO: Greedy Fetching
+            // TODO: Greedy Fetching?
             // These are the results if fetching eagerly
             // expect(dataset.store.pending.length).to.equal(2);
             // expect(dataset.store.length).to.equal(34);
@@ -313,7 +313,7 @@ describe("Dataset", function() {
             expect(dataset.store.resolved.length).to.equal(3);
             expect(dataset.store.length).to.equal(14);
 
-            // TODO: Greedy Fetching
+            // TODO: Greedy Fetching?
             // These are the results if fetching eagerly
             // expect(dataset.store.pending.length).to.equal(2);
             // expect(dataset.store.length).to.equal(34);
@@ -333,7 +333,7 @@ describe("Dataset", function() {
             expect(dataset.store.resolved.length).to.equal(3);
             expect(dataset.store.length).to.equal(10);
 
-            // TODO: Greedy Fetching
+            // TODO: Greedy Fetching?
             // These are the results if fetching eagerly
             // expect(dataset.store.pending.length).to.equal(2);
             // expect(dataset.store.length).to.equal(30);
@@ -343,7 +343,7 @@ describe("Dataset", function() {
             dataset.refilter();
             expect(dataset.store.length).to.equal(10);
 
-            // TODO: Greedy Fetching
+            // TODO: Greedy Fetching?
             // server.resolveAll().then(() => {
             //   expect(dataset.store.resolved.length).to.equal(5);
             //   expect(dataset.store.length).to.equal(16);
@@ -440,7 +440,6 @@ describe("Dataset", function() {
         });
 
         it("sets total pages", function() {
-          // TODO: Why is this set already?
           expect(dataset.store.stats.totalPages).to.equal(10);
           expect(dataset.store.length).to.equal(100);
         });
@@ -467,11 +466,12 @@ describe("Dataset", function() {
                 expect(dataset.store.requested.length).to.equal(2);
               });
               it("requests the last page", function() {
-                expect(dataset.store._getRecord(90).isRequested).to.be.true;
+                expect(dataset.store.getRecord(90).isRequested).to.equal(true);
               });
               it("does not have a record at the readOffset", function() {
-                let record = dataset.store._getRecord(100);
-                expect(record).to.equal(null);
+                let record = dataset.store.getRecord(100);
+                expect(record).to.have.property('content', null);
+                expect(record.isRequested).to.equal(false);
               });
             });
             describe("where the minimum loadHorizon is greater than or equal to the dataset length", function() {
@@ -501,190 +501,6 @@ describe("Dataset", function() {
           it("sets the total pages minus the length of the rjected page", function() {
             expect(dataset.store.stats.totalPages).to.equal(10);
             expect(dataset.store.length).to.equal(90);
-          });
-        });
-      });
-    });
-
-  });
-});
-
-// TODO: These are the remaining tests
-// To migrate to the new dataset-tests
-describe.skip("Dataset", function() {
-
-  describe("loading records", function() {
-    beforeEach(function() {
-      this.recordAtPage = function(pageIndex) {
-        if(pageIndex < this.dataset.pages.length) {
-          return this.dataset.pages.get(pageIndex).records[0];
-        } else {
-          return undefined;
-        }
-      };
-      this.totalPages = 10;
-      this.recordsPerPage = 10;
-      this.server = new Server();
-
-      this.options = {
-        pageSize: this.recordsPerPage,
-        fetch: (pageOffset, pageSize, stats) => {
-          return this.server.request(pageOffset, pageSize, stats);
-        },
-        unfetch: (records, pageOffset)=> {
-          return this.server.remove(records, pageOffset);
-        },
-        observe: (dataset) => {
-          this.dataset = dataset;
-        }
-      };
-    });
-
-    describe.skip("fetching filtered records", function() {
-      beforeEach(function() {
-        this.server = new Server();
-        this.options = {
-          pageSize: 10,
-          unloadHorizon: 10,
-          fetch: (pageOffset, pageSize, stats) => {
-            stats.totalPages = 5;
-            return this.server.request(pageOffset, pageSize, stats);
-          },
-          filter: (record) => {
-            // Filter only Odd Indexed Records
-            return record && (parseInt(record.name.substr(7)) % 2);
-          },
-          observe: (state) => {
-            this.dataset = state;
-          }
-        };
-        this.dataset = new Dataset(this.options);
-        this.dataset.setReadOffset(0);
-      });
-
-      it("fetches a page of records", function() {
-        expect(this.server.requests.length).to.equal(1);
-        expect(this.server.requests[0]).to.be.instanceOf(PageRequest);
-        expect(this.dataset.length).to.equal(10);
-      });
-      it("returns a pending state", function() {
-        expect(this.dataset.isPending).to.be.true;
-      });
-      it("fetches a set of empty Pending records", function() {
-        let record = this.dataset.pages.records.get(0);
-        expect(record.index).to.equal(0);
-        expect(record.isPending).to.be.true;
-        expect(record.content).to.equal(null);
-        expect(record.page.offset).to.equal(0);
-      });
-      describe("resolving all fetch request", function() {
-        beforeEach(function() {
-          return this.server.resolveAll();
-        });
-        it("sets total pages", function() {
-          expect(this.dataset.stats.totalPages).to.equal(5);
-        });
-        it("filters records on the first page", function () {
-          expect(this.dataset.length).to.equal(45);
-          const record = this.dataset.get(0);
-          expect(record.isResolved).to.be.true;
-          expect(record.content.name).to.equal("Record 1");
-        });
-        describe("incrementing the readOffset ahead two pages", function() {
-          beforeEach(function() {
-            this.dataset.setReadOffset(20);
-            return this.server.resolveAll();
-          });
-          it("has two resolved pages", function() {
-            expect(this.recordAtPage(0).isResolved).to.be.false;
-            expect(this.recordAtPage(1).isResolved).to.be.true;
-            expect(this.recordAtPage(2).isResolved).to.be.true;
-            expect(this.recordAtPage(3).isResolved).to.be.false;
-            expect(this.recordAtPage(4).isResolved).to.be.false;
-            expect(this.recordAtPage(5)).to.be.empty;
-          });
-          it("filters two pages of records", function () {
-            const pageSize = 10;
-            const filteredRecordPerPage = 5;
-            const unfilteredLength = this.dataset.pages.length * pageSize;
-            const filteredLength = unfilteredLength - (2 * filteredRecordPerPage);
-            expect(this.dataset.length).to.equal(filteredLength);
-
-          });
-          it("filters records on the second and third page", function () {
-            expect(this.recordAtPage(1).content.name).to.equal("Record 11");
-            expect(this.recordAtPage(2).content.name).to.equal("Record 21");
-            const record = this.dataset.get(18);
-            expect(record.content.name).to.equal("Record 27");
-            const outOfBoundsRecord = this.dataset.get(40);
-            expect(outOfBoundsRecord).to.equal(null);
-          });
-        });
-        describe("mutating records", function() {
-          beforeEach(function() {
-            let record = this.dataset.get(0);
-            record.content.name = "Record 100";
-          });
-
-          describe("without refiltering the dataset", function() {
-            it("mutates the record", function() {
-              const record = this.dataset.get(0);
-              expect(record.content.name).to.equal("Record 100");
-            });
-            it("does not filter out the record", function () {
-              expect(this.dataset.length).to.equal(45);
-            });
-          });
-
-          describe("with refiltering the dataset", function() {
-            beforeEach(function() {
-              this.dataset.filter();
-            });
-
-            it("filters out the record", function () {
-              expect(this.dataset.length).to.equal(44);
-            });
-
-            it("find a new record", function() {
-              const record = this.dataset.get(0);
-              expect(record.content.name).to.equal("Record 3");
-            });
-          });
-          describe("with reloading the dataset", function() {
-            beforeEach(function() {
-              return this.dataset.reload();
-            });
-
-            it("reloads the state", function () {
-              expect(this.dataset.isPending).to.be.true;
-            });
-
-            it("maintains the total number of records", function () {
-              expect(this.dataset.length).to.equal(50);
-            });
-
-            it("loses the mutated record", function () {
-              const record = this.dataset.get(0);
-              expect(record.content).to.be.equal(null);
-            });
-          });
-          describe("with resetting the dataset", function() {
-            beforeEach(function() {
-              return this.dataset.reset();
-            });
-
-            it("resets the state", function () {
-              expect(this.dataset.isPending).to.be.true;
-            });
-
-            it("resets the total number of records", function () {
-              expect(this.dataset.length).to.equal(10);
-            });
-
-            it("loses the mutated record", function () {
-              const record = this.dataset.get(0);
-              expect(record.content).to.be.equal(null);
-            });
           });
         });
       });

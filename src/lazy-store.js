@@ -1,5 +1,6 @@
 import Page from './page';
 import PageTree from './page-tree';
+import Record from './record';
 import cached from './cache-properties';
 
 // Unrequested Pages do not show up in Pages Interface
@@ -20,7 +21,7 @@ export default class Store {
           let index = 0;
           return {
             next: () => {
-              let value = this._getRecord(index);
+              let value = this.getRecord(index);
               let done = index++ >= this.length;
               return { value, done };
             }
@@ -191,12 +192,16 @@ export default class Store {
     return this._pages.searchPage(offset).data;
   }
 
-  _getPage(offset) {
+  getPage(offset) {
     return this._findPage(offset) || new Page(offset, this.pageSize);
   }
 
-  _getRecord(index) {
+  _findRecord(index) {
     return this._pages.searchRecord(index);
+  }
+
+  getRecord(index) {
+    return this._findRecord(index) || new Record();
   }
 
   _resolvePage(page, records) {
@@ -216,7 +221,7 @@ export default class Store {
 
     let node = this._pages.tree.getMinKeyDescendant();
     let offset = node.key && node.key.page || 0;
-    let minPage = this._getPage(offset);
+    let minPage = this.getPage(offset);
 
     let index = minPage.offset * this.pageSize;
 
@@ -225,7 +230,7 @@ export default class Store {
       for(let i = 0; i < p.records.length; i++) {
         let offset = index++;
         Object.defineProperty(this, offset, { get: function () {
-          return this._getRecord(offset);
+          return this.getRecord(offset);
         }});
       }
     });
