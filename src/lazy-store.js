@@ -13,6 +13,7 @@ export default class Store {
       unloadHorizon: Infinity,
       readOffset: undefined,
       stats: { totalPages: undefined },
+      filter: function() { return true; },
       records: {},
       [Symbol.iterator]: {
         value: function() {
@@ -113,7 +114,7 @@ export default class Store {
     let _pages = new PageTree();
 
     this.pages.forEach((p) => {
-      let page = p.isPending && p.offset === offset ? p.resolve(records) : p;
+      let page = p.offset === offset ? this._resolvePage(p, records) : p;
       _pages.insert(p.offset, page);
     });
 
@@ -141,6 +142,21 @@ export default class Store {
     });
   }
 
+  filterPages(filter) {
+    let _this = new Store(this, { filter });
+
+    let _pages = new PageTree();
+
+    this.pages.forEach((p) => {
+      let page = _this._resolvePage(p);
+      _pages.insert(p.offset, page);
+    });
+
+    _this._pages.update();
+
+    return new Store(_this, { _pages });
+  }
+
   slice() {
     return Array.prototype.slice.apply(this, arguments);
   }
@@ -164,7 +180,10 @@ export default class Store {
 
     let total = Math.max(virtualTotalPages, this.stats.totalPages || 0);
 
-    return (total - this.rejected.length) * this.pageSize;
+    // Resolved record could be filtered
+    return this.resolved.reduce((length, page) => {
+      return length - (this.pageSize - page.data.length);
+    }, (total - this.rejected.length) * this.pageSize);
   }
 
   // Private API
@@ -178,6 +197,15 @@ export default class Store {
 
   _getRecord(index) {
     return this._pages.searchRecord(index);
+  }
+
+  _resolvePage(page, records) {
+    if(page.isPending) {
+      return page.resolve(records, this.filter);
+    } else if(page.isResolved) {
+      return page.resolve(page.unfilteredData, this.filter);
+    }
+    return page;
   }
 
   _updateHorizons() {
@@ -201,16 +229,13 @@ export default class Store {
         }});
       }
     });
-
-    // Here is where we can compute each page's starting actual index
-
   }
 
   _unloadHorizons() {
     let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
 
-    let { minLoadHorizon, maxLoadHorizon } = this.getLoadHorizons();
-    let { minUnloadHorizon, maxUnloadHorizon } = this.getUnloadHorizons();
+    let { minLoadHorizon, maxLoadHorizon } = this._getLoadHorizons();
+    let { minUnloadHorizon, maxUnloadHorizon } = this._getUnloadHorizons();
 
     let unfetchable = [];
     // Unload Pages outside the upper `unloadHorizons`
@@ -255,7 +280,7 @@ export default class Store {
   }
 
   _requestHorizons() {
-    let { minLoadHorizon, maxLoadHorizon } = this.getLoadHorizons();
+    let { minLoadHorizon, maxLoadHorizon } = this._getLoadHorizons();
 
     // Request Pages within the `loadHorizons`
     for (let i = minLoadHorizon; i < maxLoadHorizon; i += 1) {
@@ -265,7 +290,7 @@ export default class Store {
     }
   }
 
-  getLoadHorizons() {
+  _getLoadHorizons() {
     let min = this.readOffset - this.loadHorizon;
     let max = this.readOffset  + this.loadHorizon;
 
@@ -278,7 +303,7 @@ export default class Store {
     return { minLoadHorizon, maxLoadHorizon };
   }
 
-  getUnloadHorizons() {
+  _getUnloadHorizons() {
     let min = this.readOffset - this.unloadHorizon;
     let max = this.readOffset  + this.unloadHorizon;
 

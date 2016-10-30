@@ -56,8 +56,8 @@ describe("Dataset", function() {
       return server.request(pageOffset, pageSize, stats);
     };
 
-    let unfetch =  (records, pageOffset)=> {
-      return unfetched = unfetched.concat(pageOffset);
+    let unfetch =  function(records, pageOffset) {
+      unfetched.push(pageOffset);
     };
 
     let observe =  (_pages) => {
@@ -238,16 +238,16 @@ describe("Dataset", function() {
       });
     });
 
-    describe.skip("Filtering the Dataset", function() {
+    describe("Filtering the Dataset", function() {
       beforeEach(function() {
-        let filter = (record) => {
-          // Filter only Odd Indexed Records
-          return record && (parseInt(record.name.substr(7)) % 2);
+        let isEvenRecord = ({ name }) => {
+          let index = name.match(/Record (\d+)/).pop();
+          return index % 2 === 0;
         };
         dataset = new Dataset({
           pageSize: 10,
           loadHorizon: 30,
-          fetch, filter, unfetch, observe
+          fetch, filter: isEvenRecord, unfetch, observe
         });
         dataset.setReadOffset(0);
       });
@@ -264,11 +264,95 @@ describe("Dataset", function() {
 
         it("filters reolved records", function() {
           expect(dataset.store.resolved.length).to.equal(3);
-          expect(dataset.store.pending.length).to.equal(1);
-          expect(dataset.store.length).to.equal(25);
+          expect(dataset.store.length).to.equal(15);
+
+          // TODO: Greedy Fetching
+          // These are the results if fetching eagerly
+          // expect(dataset.store.pending.length).to.equal(2);
+          // expect(dataset.store.length).to.equal(35);
+        });
+
+        describe("POST: creating new record", function() {
+          beforeEach(function() {
+            return dataset.post({ name: 'Record 1000' });
+          });
+
+          it("filters-out the record", function() {
+            expect(dataset.store.resolved.length).to.equal(3);
+            expect(dataset.store.length).to.equal(16);
+
+            // TODO: Greedy Fetching
+            // These are the results if fetching eagerly
+            // expect(dataset.store.pending.length).to.equal(2);
+            // expect(dataset.store.length).to.equal(35);
+          });
+        });
+
+        describe("PATCH: editing existing records", function() {
+          beforeEach(function() {
+            return dataset.put({ name: 'Record 999' }, 1);
+          });
+
+          it("filters-out the record", function() {
+            expect(dataset.store.resolved.length).to.equal(3);
+            expect(dataset.store.length).to.equal(14);
+
+            // TODO: Greedy Fetching
+            // These are the results if fetching eagerly
+            // expect(dataset.store.pending.length).to.equal(2);
+            // expect(dataset.store.length).to.equal(34);
+          });
+        });
+
+        describe("DELETE: removing an existing record", function() {
+          beforeEach(function() {
+            return dataset.delete(2);
+          });
+
+          it("deletes the record", function() {
+            expect(dataset.store.resolved.length).to.equal(3);
+            expect(dataset.store.length).to.equal(14);
+
+            // TODO: Greedy Fetching
+            // These are the results if fetching eagerly
+            // expect(dataset.store.pending.length).to.equal(2);
+            // expect(dataset.store.length).to.equal(34);
+          });
+        });
+
+        describe("applying a new filter", function() {
+          beforeEach(function() {
+            let isDivBy3Record = ({ name }) => {
+              let index = name.match(/Record (\d+)/).pop();
+              return index % 3 === 0;
+            };
+            return dataset.refilter(isDivBy3Record);
+          });
+
+          it("re-filters the reolved records", function() {
+            expect(dataset.store.resolved.length).to.equal(3);
+            expect(dataset.store.length).to.equal(10);
+
+            // TODO: Greedy Fetching
+            // These are the results if fetching eagerly
+            // expect(dataset.store.pending.length).to.equal(2);
+            // expect(dataset.store.length).to.equal(30);
+          });
+
+          it("persists the new filter", function() {
+            dataset.refilter();
+            expect(dataset.store.length).to.equal(10);
+
+            // TODO: Greedy Fetching
+            // server.resolveAll().then(() => {
+            //   expect(dataset.store.resolved.length).to.equal(5);
+            //   expect(dataset.store.length).to.equal(16);
+            //   expect(dataset.store.pending.length).to.equal(2);
+            //   expect(dataset.store.length).to.equal(36);
+            // });
+          });
         });
       });
-
     });
 
     describe("Taking Action on the Dataset", function() {
@@ -283,49 +367,56 @@ describe("Dataset", function() {
       });
 
       it("has resolved pages", function() {
-        expect(dataset.store.resolved.length).to.equal(6);
         expect(dataset.store.length).to.equal(80);
+        expect(dataset.store.resolved.length).to.equal(6);
       });
 
-      describe.skip("unloading the dataset", function() {
+      describe("reloading the dataset", function() {
         beforeEach(function() {
-          dataset.unload();
+          return dataset.reload();
         });
 
-        it("maintains the total number of records", function () {
-          expect(dataset.store.pending.length).to.equal(6);
-          expect(dataset.store.length).to.equal(80);
+        it("destroys all records", function () {
+          expect(dataset.store.length).to.equal(0);
         });
 
-        it("unfetches a bunch of pages", function () {
+        it("unfetches the resolved pages", function () {
           expect(unfetched.length).to.equal(6);
         });
       });
 
-      describe.skip("resetting the dataset", function() {
+      describe("reloading the dataset with readOffset", function() {
         beforeEach(function() {
-          dataset.reset();
+          return dataset.reload(dataset.store.readOffset);
         });
 
-        it("resets the total number of records", function () {
-          expect(dataset.store.length).to.equal(0);
-          expect(dataset.store.resolved.length).to.equal(0);
-          expect(dataset.store.pending.length).to.equal(0);
-          expect(dataset.store.unrequested.length).to.equal(0);
+        it("unfetches the resolved pages and fetches new ones", function () {
+          expect(unfetched.length).to.equal(6);
+          expect(dataset.store.pending.length).to.equal(6);
+          expect(dataset.store.length).to.equal(80);
         });
       });
 
-      describe.skip("refiltering the dataset", function() {
+      describe("resetting the dataset", function() {
         beforeEach(function() {
-          // Mutate a Record on the Dataset
-
-          // Refilter the Dataset
+          return dataset.reset();
         });
 
-        it("filters out the mutated record ", function() {
+        it("destroys all records", function () {
+          expect(dataset.store.length).to.equal(0);
+        });
+      });
 
+      describe("resetting the dataset with readOffset", function() {
+        beforeEach(function() {
+          return dataset.reset(dataset.store.readOffset);
         });
 
+        it("destroys the resolved pages without unfetching", function () {
+          expect(unfetched.length).to.equal(0);
+          expect(dataset.store.pending.length).to.equal(6);
+          expect(dataset.store.length).to.equal(80);
+        });
       });
     });
 
@@ -547,7 +638,7 @@ describe.skip("Dataset", function() {
 
           describe("with refiltering the dataset", function() {
             beforeEach(function() {
-              this.dataset.refilter();
+              this.dataset.filter();
             });
 
             it("filters out the record", function () {
