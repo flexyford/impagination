@@ -38,6 +38,12 @@ export default class Dataset {
     }
   }
 
+  refilter(filterCallback) {
+    filterCallback = filterCallback || this.store.filter;
+    this.store = this.store.refilter(filterCallback);
+    this.observe(this.store);
+  }
+
   // Unload all pages, 'unfetch' every unloaded page
   reload(readOffset) {
     // Unfetch unfetchable and resolved pages
@@ -87,7 +93,7 @@ export default class Dataset {
     index = index || this.store.readOffset;
     try {
       let record = this.store.getRecord(index);
-      let item = Object.assign({}, record.page.data[record.index], data);
+      let item = Object.assign({}, record.page.records[record.index], data);
       this.store = this.store.splice(index, 1, item);
     } catch(err) {
       console.error(`Error: Impagination did not PUT ${data}. Could not find resolved page for record at index ${index}`);
@@ -102,12 +108,6 @@ export default class Dataset {
     } catch(err) {
       console.error(`Error: Impagination did not DELETE record at ${index}. Could not find resolved page for record at index ${index}`);
     }
-    this.observe(this.store);
-  }
-
-  refilter(filterCallback) {
-    filterCallback = filterCallback || this.store.filter;
-    this.store = this.store.refilter(filterCallback);
     this.observe(this.store);
   }
 

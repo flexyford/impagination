@@ -351,6 +351,26 @@ describe("Dataset", function() {
             //   expect(dataset.store.length).to.equal(36);
             // });
           });
+
+          describe("advancing the readOffset", function() {
+            beforeEach(function() {
+              dataset.setReadOffset(4);
+            });
+            it("requests new pages from the unfiltered offset", function() {
+              expect(dataset.store.resolved.length).to.equal(3);
+              expect(dataset.store.pending.length).to.equal(2);
+              expect(dataset.store.length).to.equal(30);
+
+              // TODO: Greedy Fetching?
+              // server.resolveAll().then(() => {
+              //   expect(dataset.store.resolved.length).to.equal(5);
+              //   expect(dataset.store.length).to.equal(16);
+              //   expect(dataset.store.pending.length).to.equal(2);
+              //   expect(dataset.store.length).to.equal(36);
+              // });
+            });
+          });
+
         });
       });
     });

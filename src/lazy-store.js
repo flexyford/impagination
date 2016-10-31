@@ -166,8 +166,7 @@ export default class Store {
   splice(start, deleteCount, ...items) {
     try {
       let record = this.getRecord(start);
-      let index = record.page.unfilteredData.indexOf(record.content);
-      record.page.unfilteredData.splice(index, deleteCount, ...items);
+      record.page.data.splice(record.index, deleteCount, ...items);
     } catch(err) {
       throw Error(`Impagination could not find resolved page for record at index ${index}`);
     }
@@ -209,7 +208,7 @@ export default class Store {
 
     // Resolved record could be filtered
     return this.resolved.reduce((length, page) => {
-      return length - (this.pageSize - page.data.length);
+      return length - (this.pageSize - page.records.length);
     }, (total - this.rejected.length) * this.pageSize);
   }
 
@@ -234,7 +233,7 @@ export default class Store {
     if(page.isPending) {
       return page.resolve(records, this.filter);
     } else if(page.isResolved) {
-      return page.resolve(page.unfilteredData, this.filter);
+      return page.resolve(page.data, this.filter);
     }
     return page;
   }
@@ -322,8 +321,15 @@ export default class Store {
   }
 
   _getLoadHorizons() {
-    let min = this.readOffset - this.loadHorizon;
-    let max = this.readOffset  + this.loadHorizon;
+    let record = this.getRecord(this.readOffset);
+    let readOffset = this.readOffset;
+
+    if(record.isResolved) {
+      readOffset = (record.page.offset * this.pageSize + record.index);
+    }
+
+    let min = readOffset - this.loadHorizon;
+    let max = readOffset  + this.loadHorizon;
 
     let minLoadPage = Math.floor(min / this.pageSize);
     let maxLoadPage = Math.ceil(max / this.pageSize);
@@ -335,8 +341,14 @@ export default class Store {
   }
 
   _getUnloadHorizons() {
-    let min = this.readOffset - this.unloadHorizon;
-    let max = this.readOffset  + this.unloadHorizon;
+    let record = this.getRecord(this.readOffset);
+    let readOffset = this.readOffset;
+    if(record.isResolved) {
+      readOffset = (record.page.offset * this.pageSize + record.index);
+    }
+
+    let min = readOffset - this.unloadHorizon;
+    let max = readOffset  + this.unloadHorizon;
 
     let minUnloadPage = Math.floor(min / this.pageSize);
     let maxUnloadPage = Math.ceil(max / this.pageSize);

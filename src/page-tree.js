@@ -28,21 +28,21 @@ export default class PageTree extends AVLTree {
   }
 
   update() {
-    this.executeOnEveryNode(function(node) {
+    this.prevNode = null;
+    this.executeOnEveryNode((node) => {
+
       let { data, key, left } = node;
 
       if(!data.length) { return; }
 
       let recordIndex, page = data[0];
-      let isRightNode = node === (node.parent && node.parent.right);
-      let isSmallestNode = !node.left && !isRightNode;
 
-      if (isSmallestNode) {
+      if (!this.prevNode) {
         recordIndex = page.size * page.offset;
       } else {
-        let prevNode = (isRightNode) ? node.parent : node.left;
+        let prevNode = this.prevNode;
         let prevPage = prevNode.data[0];
-        recordIndex = prevNode.key.record + prevPage.data.length;
+        recordIndex = prevNode.key.record + prevPage.records.length;
 
         let missingPages = page.offset - prevPage.offset - 1;
         if (missingPages > 0) {
@@ -51,6 +51,7 @@ export default class PageTree extends AVLTree {
       }
 
       Object.assign(node.key, {record: recordIndex});
+      this.prevNode = node;
     });
   }
 };
@@ -79,29 +80,33 @@ BinarySearchTree.prototype.search = function (key) {
   const empty = {key, data: undefined};
   if (!this.hasOwnProperty('key')) { return empty; }
 
-  if (this.compareKeys(key, this.key) === 0) {
-    let { data, key } = this;
-    return { data: data[0], key };
-  }
+  try {
+    if (this.compareKeys(key, this.key) === 0) {
+      let { data, key } = this;
+      return { data: data[0], key };
+    }
 
-  if (this.compareKeys(key, this.key) < 0) {
-    if (this.left) {
-      return this.left.search(key);
+    if (this.compareKeys(key, this.key) < 0) {
+      if (this.left) {
+        return this.left.search(key);
+      } else {
+        return empty;
+      }
     } else {
-      return empty;
+      if (this.right) {
+        return this.right.search(key);
+      } else {
+        return empty;
+      }
     }
-  } else {
-    if (this.right) {
-      return this.right.search(key);
-    } else {
-      return empty;
-    }
+  } catch(err) {
+    return empty;
   }
 };
 
 PageTree.prototype.insert = (function() {
   var insert = AVLTree.prototype.insert;
   return function(key, page) {
-    return insert.call(this, { page: key, size: page.data.length }, page);
+    return insert.call(this, { page: key, size: page.records.length }, page);
   };
 })();
