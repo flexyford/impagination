@@ -99,8 +99,6 @@ export default class Store {
       _pages.insert(page.offset, page);
     });
 
-    this._pages.update();
-
     return new Store(this, { _pages });
   }
 
@@ -119,8 +117,6 @@ export default class Store {
       _pages.insert(p.offset, page);
     });
 
-    this._pages.update();
-
     return new Store(this, {
       _pages,
       stats: stats || this.stats
@@ -134,8 +130,6 @@ export default class Store {
       let page = p.isPending && p.offset === offset ? p.reject(error) : p;
       _pages.insert(p.offset, page);
     });
-
-    this._pages.update();
 
     return new Store(this, {
       _pages,
@@ -153,8 +147,6 @@ export default class Store {
       _pages.insert(p.offset, page);
     });
 
-    _this._pages.update();
-
     return new Store(_this, { _pages });
   }
 
@@ -164,13 +156,26 @@ export default class Store {
   // Can only mutate records on page containing record at index `start`
   // Returns new store with mutated records
   splice(start, deleteCount, ...items) {
+    let _pages = new PageTree();
     try {
       let record = this.getRecord(start);
-      record.page.data.splice(record.index, deleteCount, ...items);
+
+      this.pages.forEach((p) => {
+        if (p === record.page) {
+          let page, data = p.data.slice();
+          data.splice(record.index, deleteCount, ...items);
+          page = this._resolvePage(p, data);
+          _pages.insert(p.offset, page);
+        } else {
+          _pages.insert(p.offset, p);
+        }
+      });
+
     } catch(err) {
       throw Error(`Impagination could not find resolved page for record at index ${index}`);
     }
-    return this.refilter();
+
+    return new Store(this, { _pages });
   }
 
   // Accessor Methods
@@ -230,18 +235,21 @@ export default class Store {
   }
 
   _resolvePage(page, records) {
-    if(page.isPending) {
+    records = records || page.data;
+    if(records) {
       return page.resolve(records, this.filter);
-    } else if(page.isResolved) {
-      return page.resolve(page.data, this.filter);
+    } else {
+      return page;
     }
-    return page;
   }
 
   _updateHorizons() {
     this._unloadHorizons();
     this._requestHorizons();
+    this._addIndeces();
+  }
 
+  _addIndeces() {
     this._pages.update();
 
     let node = this._pages.tree.getMinKeyDescendant();

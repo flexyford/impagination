@@ -28,7 +28,6 @@ export default class PageTree extends AVLTree {
   }
 
   update() {
-    this.prevNode = null;
     this.executeOnEveryNode((node) => {
 
       let { data, key, left } = node;
@@ -53,6 +52,7 @@ export default class PageTree extends AVLTree {
       Object.assign(node.key, {record: recordIndex});
       this.prevNode = node;
     });
+    delete this.prevNode;
   }
 };
 
