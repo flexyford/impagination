@@ -83,6 +83,13 @@ describe("Dataset", function() {
       expect(records.length).to.equal(0);
     });
 
+    it('has unrequestedpending records', function() {
+      let record = dataset.store.getRecord(0);
+      expect(record.isRequested).to.equal(false);
+      expect(record.isPending).to.equal(false);
+      expect(record.content).to.equal(null);
+    });
+
     it("does not fetch a page", function() {
       expect(requests.length).to.equal(0);
     });
@@ -99,6 +106,13 @@ describe("Dataset", function() {
       it("sets the length and readOffset on dataset", function() {
         expect(dataset.store.readOffset).to.equal(0);
         expect(dataset.store.length).to.equal(10);
+      });
+
+      it('has pending records', function() {
+        let record = dataset.store.getRecord(0);
+        expect(record.isRequested).to.equal(true);
+        expect(record.isPending).to.equal(true);
+        expect(record.content).to.equal(null);
       });
 
       describe("advancing the read offset", function() {
@@ -277,7 +291,23 @@ describe("Dataset", function() {
             return dataset.post({ name: 'Record 1000' });
           });
 
-          it("filters-out the record", function() {
+          it("adds the record to the front of the dataset", function() {
+            expect(dataset.store.resolved.length).to.equal(3);
+            expect(dataset.store.length).to.equal(16);
+
+            // TODO: Greedy Fetching?
+            // These are the results if fetching eagerly
+            // expect(dataset.store.pending.length).to.equal(2);
+            // expect(dataset.store.length).to.equal(35);
+          });
+        });
+
+        describe("POST: appending a new record", function() {
+          beforeEach(function() {
+            return dataset.post({ name: 'Record 1000' }, dataset.store.length);
+          });
+
+          it("adds the record to the end of the dataset", function() {
             expect(dataset.store.resolved.length).to.equal(3);
             expect(dataset.store.length).to.equal(16);
 
@@ -391,13 +421,14 @@ describe("Dataset", function() {
         expect(dataset.store.resolved.length).to.equal(6);
       });
 
-      describe("reloading the dataset", function() {
+      describe("resetting the dataset", function() {
         beforeEach(function() {
-          return dataset.reload();
+          return dataset.reset();
         });
 
-        it("destroys all records", function () {
+        it("has an empty store", function() {
           expect(dataset.store.length).to.equal(0);
+          expect(dataset.store.readOffset).to.equal(undefined);
         });
 
         it("unfetches the resolved pages", function () {
@@ -405,37 +436,21 @@ describe("Dataset", function() {
         });
       });
 
-      describe("reloading the dataset with readOffset", function() {
-        beforeEach(function() {
-          return dataset.reload(dataset.store.readOffset);
-        });
-
-        it("unfetches the resolved pages and fetches new ones", function () {
-          expect(unfetched.length).to.equal(6);
-          expect(dataset.store.pending.length).to.equal(6);
-          expect(dataset.store.length).to.equal(80);
-        });
-      });
-
-      describe("resetting the dataset", function() {
-        beforeEach(function() {
-          return dataset.reset();
-        });
-
-        it("destroys all records", function () {
-          expect(dataset.store.length).to.equal(0);
-        });
-      });
-
       describe("resetting the dataset with readOffset", function() {
+        let readOffset;
         beforeEach(function() {
-          return dataset.reset(dataset.store.readOffset);
+          readOffset = dataset.store.readOffset;
+          return dataset.reset(readOffset);
         });
 
-        it("destroys the resolved pages without unfetching", function () {
-          expect(unfetched.length).to.equal(0);
+        it("fetches records", function() {
           expect(dataset.store.pending.length).to.equal(6);
           expect(dataset.store.length).to.equal(80);
+          expect(dataset.store.readOffset).to.equal(readOffset);
+        });
+
+        it("unfetches the resolved pages", function () {
+          expect(unfetched.length).to.equal(6);
         });
       });
     });

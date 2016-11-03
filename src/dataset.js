@@ -23,12 +23,12 @@ export default class Dataset {
   }
 
   // Public Functions
-  setReadOffset(offset, force=false) {
+  setReadOffset(offset) {
     const readOffset =  Math.max(Number(offset), 0);
     if (isNaN(readOffset)) {
       throw new Error(`${offset} is not a Number`);
     }
-    if (readOffset !== this.store.readOffset || force) {
+    if (readOffset !== this.store.readOffset) {
       this.store = this.store.setReadOffset(readOffset);
 
       this._fetchPages(this.store.unrequested);
@@ -44,43 +44,26 @@ export default class Dataset {
     this.observe(this.store);
   }
 
-  // Unload all pages, 'unfetch' every unloaded page
-  reload(readOffset) {
-    // Unfetch unfetchable and resolved pages
+  // 'unfetch' every unfetchable and resolved pages
+  reset(readOffset) {
     this._unfetchPages(this.store.unfetchable.concat(this.store.resolved));
 
     this.store = new Store({
       pageSize: this.store.pageSize,
       loadHorizon: this.store.loadHorizon,
       unloadHorizon: this.store.unloadHorizon,
-      stats: this.store.stats
+      stats: this.store.stats,
+      readOffset: undefined
     });
 
     if (readOffset) {
-      this.setReadOffset(readOffset, true);
+      this.setReadOffset(readOffset);
     } else {
       this.observe(this.store);
     }
   }
 
-  // Destroy all pages, does not `unfetch` any destroyed page
-  reset(readOffset) {
-    this.store = new Store({
-      pageSize: this.store.pageSize,
-      loadHorizon: this.store.loadHorizon,
-      unloadHorizon: this.store.unloadHorizon,
-      stats: this.store.stats
-    });
-
-    if (readOffset) {
-      this.setReadOffset(readOffset, true);
-    } else {
-      this.observe(this.store);
-    }
-  }
-
-  post(data, index) {
-    index = index || this.store.readOffset;
+  post(data, index = 0) {
     try {
       this.store = this.store.splice(index, 0, data);
     } catch(err) {

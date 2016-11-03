@@ -157,9 +157,10 @@ export default class Store {
   // Returns new store with mutated records
   splice(start, deleteCount, ...items) {
     let _pages = new PageTree();
+    if (start >= this.length) { start = this.length - 1; }
+    if (start < 0) { start = 0; }
     try {
       let record = this.getRecord(start);
-
       this.pages.forEach((p) => {
         if (p === record.page) {
           let page, data = p.data.slice();
