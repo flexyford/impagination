@@ -27,7 +27,7 @@ export default class PageTree extends AVLTree {
     });
   }
 
-  update() {
+  updateKeys(forEachCallback) {
     this.executeOnEveryNode((node) => {
 
       let { data, key, left } = node;

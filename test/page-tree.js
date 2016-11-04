@@ -74,7 +74,7 @@ describe("Page Tree", function() {
 
     describe("updating the record indeces", function() {
       beforeEach(function() {
-        pageTree.update();
+        pageTree.updateKeys();
       });
 
       it("can search records by record index", function() {

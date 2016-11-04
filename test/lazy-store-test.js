@@ -195,7 +195,7 @@ describe("Pages Interface Store ", function() {
         }).setReadOffset(0);
       });
 
-      describe("advancing the read offset", function() {
+      describe("increasing the read offset", function() {
         beforeEach(function() {
           store = store.setReadOffset(35);
         });
@@ -254,7 +254,6 @@ describe("Pages Interface Store ", function() {
                 expect(store.unfetchable.length).to.equal(0);
               });
             });
-
           });
         });
       });

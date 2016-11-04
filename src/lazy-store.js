@@ -39,6 +39,7 @@ export default class Store {
     }
 
     this._updateHorizons();
+    this._pages.updateKeys();
   }
 
   get pages() {
@@ -99,6 +100,8 @@ export default class Store {
       _pages.insert(page.offset, page);
     });
 
+    _pages.updateKeys();
+
     return new Store(this, { _pages });
   }
 
@@ -117,6 +120,8 @@ export default class Store {
       _pages.insert(p.offset, page);
     });
 
+    _pages.updateKeys();
+
     return new Store(this, {
       _pages,
       stats: stats || this.stats
@@ -130,6 +135,8 @@ export default class Store {
       let page = p.isPending && p.offset === offset ? p.reject(error) : p;
       _pages.insert(p.offset, page);
     });
+
+    _pages.updateKeys();
 
     return new Store(this, {
       _pages,
@@ -146,6 +153,8 @@ export default class Store {
       let page = _this._resolvePage(p);
       _pages.insert(p.offset, page);
     });
+
+    _pages.updateKeys();
 
     return new Store(_this, { _pages });
   }
@@ -244,6 +253,17 @@ export default class Store {
     }
   }
 
+  _virtualReadOffset() {
+    let record = this.getRecord(this.readOffset);
+    let readOffset = this.readOffset;
+
+    if(record.isResolved) {
+      readOffset = (record.page.offset * this.pageSize + record.index);
+    }
+
+    return readOffset;
+  }
+
   _updateHorizons() {
     this._unloadHorizons();
     this._requestHorizons();
@@ -251,27 +271,27 @@ export default class Store {
   }
 
   _addIndeces() {
-    this._pages.update();
-
     let node = this._pages.tree.getMinKeyDescendant();
     let offset = node.key && node.key.page || 0;
-    let minPage = this.getPage(offset);
-
-    let index = minPage.offset * this.pageSize;
+    let index = offset * this.pageSize;
 
     // Add index keys so we can say access values by array[index]
     this.pages.forEach((p) => {
       for(let i = 0; i < p.records.length; i++) {
         let offset = index++;
-        Object.defineProperty(this, offset, { get: function () {
-          return this.getRecord(offset);
-        }});
+        Object.defineProperty(this, offset, {
+          enumerable: true,
+          get: function () {
+            return this.getRecord(offset);
+          }
+        });
       }
     });
   }
 
   _unloadHorizons() {
-    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
+    let maxNode = this._pages.tree.getMaxKeyDescendant();
+    let maxPageOffset = maxNode.key && maxNode.key.page || 0;
 
     let { minLoadHorizon, maxLoadHorizon } = this._getLoadHorizons();
     let { minUnloadHorizon, maxUnloadHorizon } = this._getUnloadHorizons();
@@ -330,12 +350,7 @@ export default class Store {
   }
 
   _getLoadHorizons() {
-    let record = this.getRecord(this.readOffset);
-    let readOffset = this.readOffset;
-
-    if(record.isResolved) {
-      readOffset = (record.page.offset * this.pageSize + record.index);
-    }
+    let readOffset = this._virtualReadOffset();
 
     let min = readOffset - this.loadHorizon;
     let max = readOffset  + this.loadHorizon;
@@ -350,11 +365,7 @@ export default class Store {
   }
 
   _getUnloadHorizons() {
-    let record = this.getRecord(this.readOffset);
-    let readOffset = this.readOffset;
-    if(record.isResolved) {
-      readOffset = (record.page.offset * this.pageSize + record.index);
-    }
+    let readOffset = this._virtualReadOffset();
 
     let min = readOffset - this.unloadHorizon;
     let max = readOffset  + this.unloadHorizon;
@@ -362,7 +373,8 @@ export default class Store {
     let minUnloadPage = Math.floor(min / this.pageSize);
     let maxUnloadPage = Math.ceil(max / this.pageSize);
 
-    let maxPageOffset = this._pages.tree.getMaxKeyDescendant().key || 0;
+    let maxNode = this._pages.tree.getMaxKeyDescendant();
+    let maxPageOffset = maxNode.key && maxNode.key.page || 0;
 
     let minUnloadHorizon = Math.max(minUnloadPage, 0);
     let maxUnloadHorizon = Math.min(this.stats.totalPages || Infinity, maxUnloadPage, maxPageOffset + 1);
