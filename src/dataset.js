@@ -95,8 +95,6 @@ export default class Dataset {
   }
 
   _fetchPages(fetchable) {
-    this.store = this.store.fetch(fetchable);
-
     let stats = this.store.stats;
     fetchable.forEach((page) => {
       return this.fetch.call(this, page.offset, this.store.pageSize, stats).then((records = []) => {
@@ -105,6 +103,8 @@ export default class Dataset {
         return this.observe(this.store = this.store.reject(error, page, stats));
       });
     });
+
+    this.store = this.store.fetch(fetchable);
   }
 
   _unfetchPages(unfetchable) {
