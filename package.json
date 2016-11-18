@@ -1,6 +1,6 @@
 {
   "name": "impagination",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Put the fun back in asynchronous, paginated datasets",
   "main": "./lib/dataset.js",
   "jsnext:main": "./src/dataset.js",
