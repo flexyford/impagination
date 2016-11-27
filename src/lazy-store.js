@@ -46,45 +46,20 @@ export default class Store {
     return this._pages.betweenBounds({ $gte: 0 });
   }
 
-  // fetchable
-  get unrequested() {
-    return this.pages.filter((page) => {
-      return !page.isRequested;
-    });
-  }
+  get hasUnrequested() { return this.pages.some((p) => !p.isRequested); }
+  get hasRequested() { return this.pages.some((p) => p.isRequested); }
+  get hasPending() { return this.pages.some((p) => p.isPending); }
+  get hasResolved() { return this.pages.some((p) => p.isResolved); }
+  get hasRejected() { return this.pages.some((p) => p.isRejected); }
+  get hasUnfetchable() { return !!this._unfetchablePages.length; }
 
   // fetchable
-  get unfetchable() {
-    return this._unfetchablePages;
-  }
-
-  // fetching
-  get pending() {
-    return this.pages.filter((page) => {
-      return page.isPending;
-    });
-  }
-
-  // fetched
-  get resolved() {
-    return this.pages.filter((page) => {
-      return page.isResolved;
-    });
-  }
-
-  // fetched
-  get rejected() {
-    return this.pages.filter((page) => {
-      return page.isRejected;
-    });
-  }
-
-  // requested
-  get requested() {
-    return this.pages.filter((page) => {
-      return page.isRequested;
-    });
-  }
+  get unrequested() { return this.pages.filter((p) => !p.isRequested); }
+  get requested() { return this.pages.filter((p) => p.isRequested); }
+  get pending() { return this.pages.filter((p) => p.isPending); }
+  get resolved() { return this.pages.filter((p) => p.isResolved); }
+  get rejected() { return this.pages.filter((p) => p.isRejected); }
+  get unfetchable() { return this._unfetchablePages; }
 
   setReadOffset(readOffset) {
     return new Store(this, { readOffset });
@@ -168,8 +143,8 @@ export default class Store {
     let _pages = new PageTree();
     if (start >= this.length) { start = this.length - 1; }
     if (start < 0) { start = 0; }
+    let record = this.getRecord(start);
     try {
-      let record = this.getRecord(start);
       this.pages.forEach((p) => {
         if (p === record.page) {
           let page, data = p.data.slice();
@@ -182,7 +157,7 @@ export default class Store {
       });
 
     } catch(err) {
-      throw Error(`Impagination could not find resolved page for record at index ${index}`);
+      throw Error(`Impagination could not find resolved page for record at index ${record.index}`);
     }
 
     return new Store(this, { _pages });
