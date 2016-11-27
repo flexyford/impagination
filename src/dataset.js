@@ -56,7 +56,7 @@ export default class Dataset {
       readOffset: undefined
     });
 
-    if (readOffset) {
+    if (readOffset !== this.store.readOffset) {
       this.setReadOffset(readOffset);
     } else {
       this.observe(this.store);
