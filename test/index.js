@@ -9,5 +9,5 @@ require('binary-search-tree');
 // The tests, however, can and should be written with ECMAScript 2015.
 
 require("./dataset-test.js");
-require("./lazy-store-test.js");
+require("./state-test.js");
 require("./page-tree.js");

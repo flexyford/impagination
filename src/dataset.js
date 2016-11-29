@@ -1,10 +1,10 @@
-import Store from './lazy-store';
+import State from './state';
 import Record from './record';
 import findIndex from './find-index';
 
 export default class Dataset {
   constructor(attrs = {}) {
-    this.store = new Store({
+    this.state = new State({
       pageSize: Number(attrs.pageSize),
       loadHorizon: Number(attrs.loadHorizon || attrs.pageSize),
       unloadHorizon: Number(attrs.unloadHorizon) || Infinity,
@@ -28,87 +28,87 @@ export default class Dataset {
     if (isNaN(readOffset)) {
       throw new Error(`${offset} is not a Number`);
     }
-    if (readOffset !== this.store.readOffset) {
-      this.store = this.store.setReadOffset(readOffset);
+    if (readOffset !== this.state.readOffset) {
+      this.state = this.state.setReadOffset(readOffset);
 
-      this._fetchPages(this.store.unrequested);
-      this._unfetchPages(this.store.unfetchable);
+      this._fetchPages(this.state.unrequested);
+      this._unfetchPages(this.state.unfetchable);
 
-      this.observe(this.store);
+      this.observe(this.state);
     }
   }
 
   refilter(filterCallback) {
-    filterCallback = filterCallback || this.store.filter;
-    this.store = this.store.refilter(filterCallback);
-    this.observe(this.store);
+    filterCallback = filterCallback || this.state.filter;
+    this.state = this.state.refilter(filterCallback);
+    this.observe(this.state);
   }
 
   // 'unfetch' every unfetchable and resolved pages
   reset(readOffset) {
-    this._unfetchPages(this.store.unfetchable.concat(this.store.resolved));
+    this._unfetchPages(this.state.unfetchable.concat(this.state.resolved));
 
-    this.store = new Store({
-      pageSize: this.store.pageSize,
-      loadHorizon: this.store.loadHorizon,
-      unloadHorizon: this.store.unloadHorizon,
-      stats: this.store.stats,
+    this.state = new State({
+      pageSize: this.state.pageSize,
+      loadHorizon: this.state.loadHorizon,
+      unloadHorizon: this.state.unloadHorizon,
+      stats: this.state.stats,
       readOffset: undefined
     });
 
-    if (readOffset !== this.store.readOffset) {
+    if (readOffset !== this.state.readOffset) {
       this.setReadOffset(readOffset);
     } else {
-      this.observe(this.store);
+      this.observe(this.state);
     }
   }
 
   post(data, index = 0) {
     try {
-      this.store = this.store.splice(index, 0, data);
+      this.state = this.state.splice(index, 0, data);
     } catch(err) {
       console.error(`Error: Impagination did not POST ${data}. Could not find resolved page for record at index ${index}`);
     }
-    this.observe(this.store);
+    this.observe(this.state);
   }
 
   put(data, index) {
-    index = index || this.store.readOffset;
+    index = index || this.state.readOffset;
     try {
-      let record = this.store.getRecord(index);
+      let record = this.state.getRecord(index);
       let item = Object.assign({}, record.page.records[record.index], data);
-      this.store = this.store.splice(index, 1, item);
+      this.state = this.state.splice(index, 1, item);
     } catch(err) {
       console.error(`Error: Impagination did not PUT ${data}. Could not find resolved page for record at index ${index}`);
     }
-    this.observe(this.store);
+    this.observe(this.state);
   }
 
   delete(index) {
-    index = index || this.store.readOffset;
+    index = index || this.state.readOffset;
     try {
-      this.store = this.store.splice(index, 1);
+      this.state = this.state.splice(index, 1);
     } catch(err) {
       console.error(`Error: Impagination did not DELETE record at ${index}. Could not find resolved page for record at index ${index}`);
     }
-    this.observe(this.store);
+    this.observe(this.state);
   }
 
   _fetchPages(fetchable) {
-    let stats = this.store.stats;
+    let stats = this.state.stats;
     fetchable.forEach((page) => {
-      return this.fetch.call(this, page.offset, this.store.pageSize, stats).then((records = []) => {
-        return this.observe(this.store = this.store.resolve(records, page.offset, stats));
+      return this.fetch.call(this, page.offset, this.state.pageSize, stats).then((records = []) => {
+        return this.observe(this.state = this.state.resolve(records, page.offset, stats));
       }).catch((error = {}) => {
-        return this.observe(this.store = this.store.reject(error, page, stats));
+        return this.observe(this.state = this.state.reject(error, page, stats));
       });
     });
 
-    this.store = this.store.fetch(fetchable);
+    this.state = this.state.fetch(fetchable);
   }
 
   _unfetchPages(unfetchable) {
-    this.store = this.store.unfetch(unfetchable);
+    this.state = this.state.unfetch(unfetchable);
 
     unfetchable.forEach((page) => {
       this.unfetch.call(this, page.records, page.offset);

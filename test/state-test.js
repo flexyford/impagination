@@ -1,11 +1,11 @@
-import Store from '../src/lazy-store';
+import State from '../src/state';
 
 import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
 import { Server, PageRequest, createRecords } from './test-server';
 
-describe("Pages Interface Store ", function() {
-  function expectPages(store, expected = {}) {
+describe("Pages Interface State ", function() {
+  function expectPages(state, expected = {}) {
     expected = Object.assign({
       unrequested: 0,
       unfetchable: 0,
@@ -16,65 +16,65 @@ describe("Pages Interface Store ", function() {
 
     let numRequestedPages = expected.pending + expected.resolved + expected.rejected;
 
-    expect(store.requested.length).to.equal(numRequestedPages);
-    expect(store.unfetchable.length).to.equal(expected.unfetchable);
-    expect(store.unrequested.length).to.equal(expected.unrequested);
-    expect(store.pending.length).to.equal(expected.pending);
-    expect(store.resolved.length).to.equal(expected.resolved);
-    expect(store.rejected.length).to.equal(expected.rejected);
+    expect(state.requested.length).to.equal(numRequestedPages);
+    expect(state.unfetchable.length).to.equal(expected.unfetchable);
+    expect(state.unrequested.length).to.equal(expected.unrequested);
+    expect(state.pending.length).to.equal(expected.pending);
+    expect(state.resolved.length).to.equal(expected.resolved);
+    expect(state.rejected.length).to.equal(expected.rejected);
   }
 
   describe("instantiating pages", function() {
     it("cannot be instantiated without pageSize", function() {
       var err = "";
-      try { new Store(); } catch(e) { err = e; }
+      try { new State(); } catch(e) { err = e; }
       expect(err).to.match(/without pageSize/);
     });
 
     it("cannot be instantiated with unloadHorizon less than loadHorizon", function () {
       var err = "";
-      try { new Store({
+      try { new State({
         pageSize: 1, loadHorizon: 5, unloadHorizon: 1
       }); } catch(e) { err = e; }
       expect(err).to.match(/unloadHorizon less than loadHorizon/);
     });
 
     describe("with pageSize", function() {
-      let store;
+      let state;
       beforeEach(function() {
-        store = new Store({ pageSize: 10 });
+        state = new State({ pageSize: 10 });
       });
 
       it("has default constructor values", function() {
-        expect(store.pageSize).to.equal(10);
-        expect(store.loadHorizon).to.equal(10);
-        expect(store.unloadHorizon).to.equal(Infinity);
-        expect(store.readOffset).to.equal(undefined);
+        expect(state.pageSize).to.equal(10);
+        expect(state.loadHorizon).to.equal(10);
+        expect(state.unloadHorizon).to.equal(Infinity);
+        expect(state.readOffset).to.equal(undefined);
       });
 
       it("does not request pages", function() {
-        expectPages(store);
+        expectPages(state);
       });
 
       it("does not have any records", function() {
-        expect(store.length).to.equal(0);
+        expect(state.length).to.equal(0);
       });
 
       describe("setting the read offset", function() {
         beforeEach(function() {
-          store = store.setReadOffset(0);
+          state = state.setReadOffset(0);
         });
 
         it("has unrequested pages", function() {
-          expectPages(store, { unrequested: 1 });
+          expectPages(state, { unrequested: 1 });
         });
 
         it("has empty unrequested records", function() {
-          const readOffset = store.readOffset;
-          const record = store[readOffset];
+          const readOffset = state.readOffset;
+          const record = state[readOffset];
 
           expect(readOffset).to.equal(0);
-          expect(store.length).to.equal(10);
+          expect(state.length).to.equal(10);
 
           expect(record.isRequested).to.be.false;
           expect(record.isPending).to.be.false;
@@ -86,19 +86,19 @@ describe("Pages Interface Store ", function() {
 
         describe("advancing the read offset", function() {
           beforeEach(function() {
-            store = store.setReadOffset(35);
+            state = state.setReadOffset(35);
           });
 
           it("unloads the previously unrequested page and generates new unrequested pages", function() {
-            expectPages(store, { unrequested: 3 });
+            expectPages(state, { unrequested: 3 });
           });
 
           it("has more unrequested records", function() {
-            const readOffset = store.readOffset;
-            const record = store[readOffset];
+            const readOffset = state.readOffset;
+            const record = state[readOffset];
 
             expect(readOffset).to.equal(35);
-            expect(store.length).to.equal(50);
+            expect(state.length).to.equal(50);
 
             expect(record.isRequested).to.be.false;
             expect(record.isPending).to.be.false;
@@ -111,19 +111,19 @@ describe("Pages Interface Store ", function() {
 
         describe("fetching all unrequested pages", function() {
           beforeEach(function() {
-            store = store.fetch(store.unrequested);
+            state = state.fetch(state.unrequested);
           });
 
           it("requests pages", function() {
-            expectPages(store, { pending: 1 });
+            expectPages(state, { pending: 1 });
           });
 
           it("has pending records", function() {
-            const readOffset = store.readOffset;
-            const record = store[readOffset];
+            const readOffset = state.readOffset;
+            const record = state[readOffset];
 
             expect(readOffset).to.equal(0);
-            expect(store.length).to.equal(10);
+            expect(state.length).to.equal(10);
 
             expect(record.isRequested).to.be.true;
             expect(record.isPending).to.be.true;
@@ -135,50 +135,50 @@ describe("Pages Interface Store ", function() {
 
           describe("advancing the read offset", function() {
             beforeEach(function() {
-              store = store.setReadOffset(35);
+              state = state.setReadOffset(35);
             });
 
             it("unloads the pending page and generates new unrequested pages", function() {
-              expectPages(store, { unrequested: 3, pending: 0 });
-              expect(store.length).to.equal(50);
+              expectPages(state, { unrequested: 3, pending: 0 });
+              expect(state.length).to.equal(50);
             });
           });
 
           describe("resolving pages", function() {
             beforeEach(function() {
-              store.pending.forEach((pendingPage) => {
-                let records = createRecords(store.pageSize, pendingPage.offset);
-                store = store.resolve(records, pendingPage.offset);
+              state.pending.forEach((pendingPage) => {
+                let records = createRecords(state.pageSize, pendingPage.offset);
+                state = state.resolve(records, pendingPage.offset);
               });
             });
 
             it("has resolved pages", function() {
-              expectPages(store, { resolved: 1 });
-              expect(store.length).to.equal(10);
+              expectPages(state, { resolved: 1 });
+              expect(state.length).to.equal(10);
             });
 
             describe("advancing the read offset", function() {
               beforeEach(function() {
-                store = store.setReadOffset(35);
+                state = state.setReadOffset(35);
               });
 
               it("keeps the resolved page and generates new Unrequested pages", function() {
-                expectPages(store, { unrequested: 3, resolved: 1 });
-                expect(store.length).to.equal(50);
+                expectPages(state, { unrequested: 3, resolved: 1 });
+                expect(state.length).to.equal(50);
               });
             });
           });
 
           describe("rejecting pages", function() {
             beforeEach(function() {
-              store.pending.forEach((pendingPage) => {
-                store = store.reject("404", pendingPage);
+              state.pending.forEach((pendingPage) => {
+                state = state.reject("404", pendingPage);
               });
             });
 
             it("does not have any records", function() {
-              expectPages(store, { rejected: 1 });
-              expect(store.length).to.equal(0);
+              expectPages(state, { rejected: 1 });
+              expect(state.length).to.equal(0);
             });
           });
         });
@@ -186,9 +186,9 @@ describe("Pages Interface Store ", function() {
     });
 
     describe("with an unload horizon", function() {
-      let store;
+      let state;
       beforeEach(function() {
-        store = new Store({
+        state = new State({
           pageSize: 10,
           loadHorizon: 10,
           unloadHorizon: 10
@@ -197,61 +197,61 @@ describe("Pages Interface Store ", function() {
 
       describe("increasing the read offset", function() {
         beforeEach(function() {
-          store = store.setReadOffset(35);
+          state = state.setReadOffset(35);
         });
 
         it("unloads the previously unrequested page and generates new unrequested pages", function() {
-          expectPages(store, { unrequested: 3 });
+          expectPages(state, { unrequested: 3 });
         });
       });
 
       describe("fetching all unrequested pages", function() {
         beforeEach(function() {
-          store = store.fetch(store.unrequested);
+          state = state.fetch(state.unrequested);
         });
 
         it("requests pages", function() {
-          expectPages(store, { pending: 1 });
+          expectPages(state, { pending: 1 });
         });
 
         describe("advancing the read offset", function() {
           beforeEach(function() {
-            store = store.setReadOffset(35);
+            state = state.setReadOffset(35);
           });
 
           it("unloads the pending page and generates new unrequested pages", function() {
-            expectPages(store, { unrequested: 3, pending: 0 });
+            expectPages(state, { unrequested: 3, pending: 0 });
           });
         });
 
         describe("resolving pages", function() {
           beforeEach(function() {
-            store.pending.forEach((pendingPage) => {
-              let records = createRecords(store.pageSize, pendingPage.offset);
-              store = store.resolve(records, pendingPage.offset);
+            state.pending.forEach((pendingPage) => {
+              let records = createRecords(state.pageSize, pendingPage.offset);
+              state = state.resolve(records, pendingPage.offset);
             });
           });
 
           it("has resolved pages", function() {
-            expectPages(store, { resolved: 1 });
+            expectPages(state, { resolved: 1 });
           });
 
           describe("advancing the read offset", function() {
             beforeEach(function() {
-              store = store.setReadOffset(35);
+              state = state.setReadOffset(35);
             });
 
             it("unloads the resolved page and generates new Unrequested pages", function() {
-              expectPages(store, { unrequested: 3, unfetchable: 1, resolved: 0 });
+              expectPages(state, { unrequested: 3, unfetchable: 1, resolved: 0 });
             });
 
             describe("unfetching all unfetchable pages", function() {
               beforeEach(function() {
-                store = store.unfetch(store.unfetchable);
+                state = state.unfetch(state.unfetchable);
               });
 
               it("unfetches pages", function() {
-                expect(store.unfetchable.length).to.equal(0);
+                expect(state.unfetchable.length).to.equal(0);
               });
             });
           });
@@ -260,47 +260,47 @@ describe("Pages Interface Store ", function() {
     });
 
     describe("with stats", function() {
-      let store;
+      let state;
       beforeEach(function() {
-        store = new Store({
+        state = new State({
           pageSize: 10,
           stats: { totalPages: 10 }
         }).setReadOffset(0);
       });
 
       it("has default constructor values", function() {
-        expect(store.stats.totalPages).to.equal(10);
-        expect(store.readOffset).to.equal(0);
+        expect(state.stats.totalPages).to.equal(10);
+        expect(state.readOffset).to.equal(0);
       });
 
       it("requests pages", function() {
-        expect(store.unrequested.length).to.equal(1);
-        expect(store.length).to.equal(100);
+        expect(state.unrequested.length).to.equal(1);
+        expect(state.length).to.equal(100);
       });
 
       describe("setting the readOffset out of bounds", function() {
         beforeEach(function() {
-          store.fetch(store.unrequested);
+          state.fetch(state.unrequested);
 
-          store.pending.forEach((pendingPage) => {
-            let records = createRecords(store.pageSize, pendingPage.offset);
-            store = store.resolve(records, pendingPage.offset);
+          state.pending.forEach((pendingPage) => {
+            let records = createRecords(state.pageSize, pendingPage.offset);
+            state = state.resolve(records, pendingPage.offset);
           });
         });
         describe("where the minimum loadHorizon is less than the dataset length", function() {
           let readOffset;
           beforeEach(function() {
 
-            readOffset = store.length + store.loadHorizon - 1;
-            store = store.setReadOffset(readOffset);
+            readOffset = state.length + state.loadHorizon - 1;
+            state = state.setReadOffset(readOffset);
           });
           it("has a new unrequested page", function() {
-            expect(store.unrequested.length).to.equal(1);
-            expect(store.unrequested[0].offset).to.equal(9);
-            expect(store.getPage(9).offset).to.equal(9);
+            expect(state.unrequested.length).to.equal(1);
+            expect(state.unrequested[0].offset).to.equal(9);
+            expect(state.getPage(9).offset).to.equal(9);
           });
           it("does not have a record at the readOffset", function() {
-            let record = store.getRecord(readOffset);
+            let record = state.getRecord(readOffset);
             expect(record).to.have.property('content', null);
           });
         });

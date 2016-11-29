@@ -22,7 +22,7 @@ import Dataset from 'impagination';
 
 let dataset = new Dataset({
   pageSize: 5, // num records per page
-  loadHorizon: 10, // window of records to store (default: pageSize)
+  loadHorizon: 10, // window of records to keep (default: pageSize)
   fetch: function(pageOffset, pageSize, stats) { // How to `fetch` a page
     stats.totalPages = 4;
     // Returns a `thenable` which resolves with page's `records`
@@ -30,25 +30,25 @@ let dataset = new Dataset({
   },
   unfetch: function(records, pageOffset) {} // invoked whenever a page is unloaded
   filter: function(element, index, array) {} // filters `records` whenever a page resolves
-  observe: function(nextStore) { // invoked whenever a new `store` is generated
-    dataset.store = nextStore;
+  observe: function(nextState) { // invoked whenever a new `state` is generated
+    dataset.state = nextState;
   }
 });
 ```
 
-Calling `new Dataset()` will emit a `store` immediately. However this `store` will be empty.
+Calling `new Dataset()` will emit a `state` immediately. However this `state` will be empty.
 
 ```javascript
-dataset.store.length //=> 0;
+dataset.state.length //=> 0;
 
-let record = dataset.store.getRecord(0); // Empty Record
+let record = dataset.state.getRecord(0); // Empty Record
 record.isRequested //=> false
 record.isPending //=> false
 record.isResolved //=> false
 record.content //=> null
 ```
 
-To start fetching pages and build the `store`, we need to start reading from a set  offset. To do this, we will update the dataset's `readOffset`.
+To start fetching pages and build the `state`, we need to start reading from an offset. To do this, we will update the dataset's `readOffset`.
 
 ```javascript
 dataset.setReadOffset(0);
@@ -59,10 +59,10 @@ and emit a new state indicating that these records are in flight.
 
 ```javascript
 dataset.setReadOffset(0);
-dataset.store.length //=> 10;
+dataset.state.length //=> 10;
 
 // Records 0-9 are Pending Records
-let record = dataset.store.getRecord(0);
+let record = dataset.state.getRecord(0);
 record.isRequested //=> true
 record.isPending //=> true
 record.isResolved //=> false
@@ -107,13 +107,13 @@ ASCII  Legend:
 
 #### Resolving Asynchrnous Pages
 Once the asynchronous `fetch` for a page resolves, the
-dataset will emit a new state with the updated resolved records.
+dataset will emit a new `state` with the updated resolved records.
 
 Continuing our previous example, we assume the the request on page `0` resolves and the
-request on page `1` is not yet resolved. That store will still contain the resolved records as well the pending records.
+request on page `1` is not yet resolved. That state will still contain the resolved records as well the pending records.
 
 ```javascript
-dataset.store.length //=> 20;
+dataset.state.length //=> 20;
 
 // Assumes the page `0` resolves and page `1` is pending
 let record = state.getRecord(0);
@@ -133,7 +133,7 @@ Another interesting thing that happened here is that the length of the
 dataset has also changed.
 
 ```javascript
-dataset.store.length //=> 20 (stats.totalPages: 4, pageSize: 5)
+dataset.state.length //=> 20 (stats.totalPages: 4, pageSize: 5)
 ```
 
 That's because the `stats` parameter that is passed into our example
@@ -179,19 +179,19 @@ There are a number of public `impagination` functions which we provide as action
 | Actions       | Parameters     | Description   |
 | ------------- |:--------------:|:--------------|
 | refilter      | [filterCallback] | Reapplies the filter for all resolved pages. If `filterCallback` is provided, applies and sets the new filter.
-| reset        | [offset]          | Unfetches all pages and empties the `store`. If `offset` is provided, fetches records at starting at `offset`.
+| reset        | [offset]          | Unfetches all pages and clears the `state`. If `offset` is provided, fetches records starting at `offset`.
 | setReadOffset | [offset]         | Sets the `readOffset` and fetches records resuming at `offset`
 
-#### Updating the Store
+#### Updating the State
 | Actions| Parameters  | Defaults        |Description   |
 | ------ |:-----------:|:--------------|:--------------|
-| post   | data, index | index = 0 | Inserts `data` into `store` at `index`.
-| put    | data, index | index = store.readOffset | Merges `data` into record at `index`.
-| delete | index       | index= store.readOffset  | Deletes `data` from `store` at `index`.
+| post   | data, index | index = 0 | Inserts `data` into `state` at `index`.
+| put    | data, index | index = state.readOffset | Merges `data` into record at `index`.
+| delete | index       | index= state.readOffset  | Deletes `data` from `state` at `index`.
 
 
 #### setReadOffset Example
-Let's say the we change our viewport to item 2 in our UI. We want to tell impagination to move the read head to offset 2 with a call to `dataset.setReadOffset(2)`. This will immediately emit a new state that looks like this:
+Let's say the we change our viewport to item 2 in our UI. We want to tell impagination to move the read head to offset 2 with a call to `dataset.setReadOffset(2)`. This will immediately emit a new `state` that looks like this:
 
 ```
                  Read
@@ -313,4 +313,4 @@ on neither prior nor subsequent states.
 You may be asking, is it not wasteful to recreate an *entire* potentially
 infinite data structure with every state transition? The answer is
 that each state is lazy and stores as little information as it needs
-to provide its API. The store contains lazy array interfaces for `pages` and `records`.
+to provide its API. The `state` contains lazy array interfaces for `pages` and `records`.

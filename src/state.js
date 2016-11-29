@@ -4,7 +4,7 @@ import Record from './record';
 import cached from './cache-properties';
 
 // Unrequested Pages do not show up in Pages Interface
-export default class Store {
+export default class State {
   constructor(previous = {}, attrs = {}) {
     Object.assign(this, {
       _pages: new PageTree(),
@@ -62,7 +62,7 @@ export default class Store {
   get unfetchable() { return this._unfetchablePages; }
 
   setReadOffset(readOffset) {
-    return new Store(this, { readOffset });
+    return new State(this, { readOffset });
   }
 
   fetch(fetchable = []) {
@@ -77,12 +77,12 @@ export default class Store {
 
     _pages.updateKeys();
 
-    return new Store(this, { _pages });
+    return new State(this, { _pages });
   }
 
   unfetch(unfetchable = []) {
     if (!unfetchable.length) { return this; }
-    return new Store(this, {
+    return new State(this, {
       _unfetchablePages: this._unfetchablePages.filter(p => !unfetchable.includes(p))
     });
   }
@@ -97,7 +97,7 @@ export default class Store {
 
     _pages.updateKeys();
 
-    return new Store(this, {
+    return new State(this, {
       _pages,
       stats: stats || this.stats
     });
@@ -113,14 +113,14 @@ export default class Store {
 
     _pages.updateKeys();
 
-    return new Store(this, {
+    return new State(this, {
       _pages,
       stats: stats || this.stats
     });
   }
 
   refilter(filter) {
-    let _this = filter ? new Store(this, { filter }) : this;
+    let _this = filter ? new State(this, { filter }) : this;
 
     let _pages = new PageTree();
 
@@ -131,14 +131,14 @@ export default class Store {
 
     _pages.updateKeys();
 
-    return new Store(_this, { _pages });
+    return new State(_this, { _pages });
   }
 
   // Mutator Methods
 
   // splice:
   // Can only mutate records on page containing record at index `start`
-  // Returns new store with mutated records
+  // Returns new state with mutated records
   splice(start, deleteCount, ...items) {
     let _pages = new PageTree();
     if (start >= this.length) { start = this.length - 1; }
@@ -160,7 +160,7 @@ export default class Store {
       throw Error(`Impagination could not find resolved page for record at index ${record.index}`);
     }
 
-    return new Store(this, { _pages });
+    return new State(this, { _pages });
   }
 
   // Accessor Methods
@@ -358,4 +358,4 @@ export default class Store {
   }
 };
 
-cached(Store);
+cached(State);
