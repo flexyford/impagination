@@ -12,6 +12,12 @@ ideal for use with UI frameworks like Ember, Angular, or React. That
 said, it has zero dependencies apart from JavaScript, so it can be
 used from node as well.
 
+## Installation
+
+```
+npm install impagination
+```
+
 ## Upgrading
 
 If you are `Impagination` to the `1.0` release. Consider checking out the [Migration Guide](https://github.com/flexyford/impagination/MIGRATION.md)
