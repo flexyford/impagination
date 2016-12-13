@@ -20,7 +20,7 @@ npm install impagination
 
 ## Upgrading
 
-If you are `Impagination` to the `1.0` release. Consider checking out the [Migration Guide](https://github.com/flexyford/impagination/MIGRATION.md)
+If you are upgrading `Impagination` to the `1.0` release, consider checking out the [Migration Guide](https://github.com/flexyford/impagination/MIGRATION.md)
 
 ## Usage
 
