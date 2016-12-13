@@ -12,6 +12,10 @@ ideal for use with UI frameworks like Ember, Angular, or React. That
 said, it has zero dependencies apart from JavaScript, so it can be
 used from node as well.
 
+## Upgrading
+
+If you are `Impagination` to the `1.0` release. Consider checking out the [Migration Guide](https://github.com/flexyford/impagination/MIGRATION.md)
+
 ## Usage
 
 To get started, create a dataset. There are only two required parameters
