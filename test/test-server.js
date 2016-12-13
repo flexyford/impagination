@@ -42,10 +42,12 @@ export class Server {
     return this.requests[pageOffset] = new PageRequest(pageOffset, pageSize, stats);
   }
 
-  remove(records, pageOffset) {
-    let  unfetchedPage = this.requests[pageOffset];
-    delete this.requests[pageOffset];
-    return unfetchedPage;
+  resolve(requestIndex) {
+    return Promise.resolve(this.requests[requestIndex].resolve());
+  }
+
+  reject(requestIndex) {
+    return Promise.reject(this.requests[requestIndex].reject());
   }
 
   /**
@@ -56,6 +58,11 @@ export class Server {
    */
   resolveAll() {
     this.requests.forEach((request) => request.resolve());
+    return Promise.all(this.requests);
+  }
+
+  rejectAll() {
+    this.requests.forEach((request) => request.reject());
     return Promise.all(this.requests);
   }
 }
@@ -83,15 +90,19 @@ export class PageRequest {
   }
 
   resolve() {
-    let records = Array.from(Array(this.size), (_, i)=> {
-      return {name: `Record ${this.offset * this.size + i}`};
-    });
+    let records = createRecords(this.size, this.offset);
     this._resolve(records);
     return this;
   }
 
   reject() {
-    this._reject.apply(null, arguments);
+    this._reject('404');
     return this;
   }
+}
+
+export function createRecords(size, offset = 0) {
+  return Array.from(Array(size), (_, i)=> {
+    return {name: `Record ${offset * size + i}`};
+  });
 }

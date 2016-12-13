@@ -2,22 +2,19 @@
 
 [![npm version](https://badge.fury.io/js/impagination.svg)](https://badge.fury.io/js/impagination)
 [![Build Status](https://travis-ci.org/flexyford/impagination.svg)](https://travis-ci.org/flexyford/impagination)
-[![frontside approved](https://zm6o5z0kfa.execute-api.us-east-1.amazonaws.com/dev/badges/frontside/)](http://frontside.io)
 
+Put the *fun* back in lazy, asynchronous, paged, datasets.
 
-Put the *fun* back in asynchronous, paged, datasets.
-
-Whatever your use-case: infinite scrolling lists, a carousel browser,
-or even a classic page-by-page result list, Impagination frees you to
-focus on what you want to do with your data, not the micro-logistics
-of when to fetch it. All you provide Impagination is the logic to
-fetch a single page, plus how many pages you want it to pre-fetch
-ahead of you, and it will figure out the rest.
+Impagination is a lazy data layer for your paged records. All you provide Impagination is the logic to fetch a single page, plus how many records you want it to pre-fetch ahead of you.
 
 Impagination is built using an event-driven immutable style, so it is
 ideal for use with UI frameworks like Ember, Angular, or React. That
 said, it has zero dependencies apart from JavaScript, so it can be
 used from node as well.
+
+## Upgrading
+
+If you are `Impagination` to the `1.0` release. Consider checking out the [Migration Guide](https://github.com/flexyford/impagination/MIGRATION.md)
 
 ## Usage
 
@@ -25,79 +22,71 @@ To get started, create a dataset. There are only two required parameters
 `fetch`, and `pageSize`:
 
 ```javascript
-import { Dataset } from 'impagination';
-
-let state = null;
+import Dataset from 'impagination';
 
 let dataset = new Dataset({
-  // how many records should we "keep ahead"? (default = pageSize)
-  loadHorizon: 10,
-  // fetch in pages of 5 (default 10)
-  pageSize: 5,
-  // this fetch function returns a page where the "records" *are*
-  // the offsets
-  fetch: function(pageOffset, pageSize, stats) {
-    stats.totalPages = 5;
-    return new Promise(function(resolve) {
-      resolve(return new Array(pageSize).fill(0).map(function(zero, i)) {
-        return pageOffset * pageSize + i;
-      });
-    });
+  pageSize: 5, // num records per page
+  loadHorizon: 10, // window of records to keep (default: pageSize)
+  fetch: function(pageOffset, pageSize, stats) { // How to `fetch` a page
+    stats.totalPages = 4;
+    // Returns a `thenable` which resolves with page's `records`
+    return $.ajax({ method, url });
   },
-  // unfetch() function is invoked whenever a page is unloaded
-  unfetch: function(records, pageOffset) {}
-  // filter() function which filters records from a new state whenever a page resolves or 
-  // when calling `refilter` on the dataset
-  filter: function(element, index, array) {}
-  // observe() function is invoked whenever a new state is generated.
-  observe: function(nextState) {
-    state = nextState;
+  unfetch: function(records, pageOffset) {} // invoked whenever a page is unloaded
+  filter: function(element, index, array) {} // filters `records` whenever a page resolves
+  observe: function(nextState) { // invoked whenever a new `state` is generated
+    dataset.state = nextState;
   }
 });
 ```
 
-This will emit a state immediately, however this state will not have
-anything in it, but That's because we haven't told the dataset where we
-want to start reading from.
+Calling `new Dataset()` will emit a `state` immediately. However this `state` will be empty.
 
 ```javascript
-state.length //=> 0;
-state.get(0) //=> null;
+dataset.state.length //=> 0;
+
+let record = dataset.state.getRecord(0); // Empty Record
+record.isRequested //=> false
+record.isPending //=> false
+record.isResolved //=> false
+record.content //=> null
 ```
 
-To tell where to start reading, you update the dataset's "read
-offset". It's one of the [APIs that impagination exposes](#dataset-api),
-and it indicates where you're interested in accessing records. Let's start
-at the beginning.
+To start fetching pages and build the `state`, we need to start reading from an offset. To do this, we will update the dataset's `readOffset`.
 
 ```javascript
 dataset.setReadOffset(0);
 ```
 
-Immediately, this will call fetch twice (for records 0-4, and 5-9),
+With a `pageSize` of 5, this will immediately call fetch twice (for records 0-4, and 5-9),
 and emit a new state indicating that these records are in flight.
 
 ```javascript
-state.length //=> 10
-let record = state.get(7)
+dataset.setReadOffset(0);
+dataset.state.length //=> 10;
+
+// Records 0-9 are Pending Records
+let record = dataset.state.getRecord(0);
 record.isRequested //=> true
 record.isPending //=> true
 record.isResolved //=> false
-record.index //=> 2
 record.content //=> null
 ```
 
 ### Load Horizon
 
 How did it know which records to fetch? The answer is in the
-`loadHorizon` parameter that we passed into the constructor. This
-tells the dataset, that it should keep all records within 10 of the
+`loadHorizon` parameter that we passed into the constructor.
+We set the `loadHorizon` to 10. This tells the dataset,
+that it should keep all records within 10 of the
 current read offset loaded. That's why it fetched the first two
-pages. Now logicially, our dataset looks like this:
+pages.
 
-> Note: `*` indicates that the record is pending.
+I hope this ASCII Dataset adds some clarity:
 
-
+```javascript
+dataset = new Dataset(...).setReadOffset(0); // builds the dataset below
+```
 ```
            Read
           Offset
@@ -109,43 +98,56 @@ pages. Now logicially, our dataset looks like this:
              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
               * * * * * * * * * *
              ◇ ─ ─ ─ ─ ◇─ ─ ─ ─  ┘
-             │         │
-             p0        p1
+             │         │         │
+             p0        p1        length = 10
+```
+```
+ASCII  Legend:
+`xx` - unrequested record
+`*`  - pending record
+`n`  - record inex
+`◇`  - page boundary
 ```
 
-At some point, the request for the first page resolves. At that point,
-the dataset will emit a new state with the resolved records. That
-state will still contain the pending records as well as the freshly
-loaded.
+#### Resolving Asynchrnous Pages
+Once the asynchronous `fetch` for a page resolves, the
+dataset will emit a new `state` with the updated resolved records.
 
+Continuing our previous example, we assume the the request on page `0` resolves and the
+request on page `1` is not yet resolved. That state will still contain the resolved records as well the pending records.
 
 ```javascript
-//get a record off the first page
-record = state.get(3);
-record.isResolved //=> true
-record.content //=> 3
+dataset.state.length //=> 20;
 
-//get a record off the second page
-record = state.get(7)
+// Assumes the page `0` resolves and page `1` is pending
+let record = state.getRecord(0);
+record.page.offset = 0;
+record.isPending //=> false
+record.isResolved //=> true
+record.content //=> { name: 'Record 3' }
+
+record = state.get(5)
+record.page.offset = 1;
 record.isPending //=> true
+record.isResolved //=> false
+record.content //=> null
 ```
 
 Another interesting thing that happened here is that the length of the
 dataset has also changed.
 
 ```javascript
-state.length //=> 25 (stats.totalPages: 5, pageSize: 5)
+dataset.state.length //=> 20 (stats.totalPages: 4, pageSize: 5)
 ```
 
-This has to do with the `stats` parameter that is passed into the
-fetch function. This value allows the fetch function to optionally
+That's because the `stats` parameter that is passed into our example
+fetch function tells our dataset there are `5` total pages in our dataset.
+This value allows the fetch function to optionally
 specify the total extent of the dataset if that information is
 available. This can be useful when rendering native scrollbars or
 other UI elements that indicate the overall length of a list. If
 `stats` are never updated, then the dataset will just expand
 indefinitely. Now our state looks like this:
-
-> Note `x` indicates that the record is not yet requested
 
 ```
             Read
@@ -155,20 +157,20 @@ indefinitely. Now our state looks like this:
 <──────────Load Horizon──────────>
               ┃
               ▼
-              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-               0 1 2 3 4 * * * * * xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx│
-              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  ─ ─ ─ ─ ─ ─ ─ ── ─ ┐
+               0 1 2 3 4 * * * * * xx xx xx xx xx xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─  ◇ ─ ─ ─ ─ ─ ─  ┘
               │         │         │              │              │
-             p0        p1        p2             p3             p4
+             p0        p1        p2             p3              length = 20
 
 ```
 
 We have records 0-4, whilst records 5-9 are in flight, and records
-10-25 have yet to be requested.
+10-20 have yet to be requested.
 
 ```javascript
-//from the last page (p4)
-record = state.get(23);
+//from the last ◇ page (p3)
+record = state.getRecord(17);
 record.isRequested //=> false
 record.isPending //=> false
 record.content //> null
@@ -177,18 +179,23 @@ record.content //> null
 ### Dataset API
 There are a number of public `impagination` functions which we provide as actions to update the dataset.
 
-| Actions       | Params         | Default         | Description   |
-| ------------- |:--------------:|:---------------:|:--------------|
-| refilter      |    _none_      |   _none_        | Reapplies the filter to all resolved pages.
-| reload        | `offset`       | _currentOffset_ | Unfetches all pages and fetches records at starting at `offset`
-| reset         | `offset`       |     0           | Destroys  all pages and fetches records at starting at `offset`
-| setReadOffset | `offset`       |   _none_        | Sets the readOffset and fetches records resuming at `offset`
+#### Updating the Dataset
+| Actions       | Parameters     | Description   |
+| ------------- |:--------------:|:--------------|
+| refilter      | [filterCallback] | Reapplies the filter for all resolved pages. If `filterCallback` is provided, applies and sets the new filter.
+| reset        | [offset]          | Unfetches all pages and clears the `state`. If `offset` is provided, fetches records starting at `offset`.
+| setReadOffset | [offset]         | Sets the `readOffset` and fetches records resuming at `offset`
+
+#### Updating the State
+| Actions| Parameters  | Defaults        |Description   |
+| ------ |:-----------:|:--------------|:--------------|
+| post   | data, index | index = 0 | Inserts `data` into `state` at `index`.
+| put    | data, index | index = state.readOffset | Merges `data` into record at `index`.
+| delete | index       | index= state.readOffset  | Deletes `data` from `state` at `index`.
 
 
 #### setReadOffset Example
-Let's say we want to move the read head to offset 2 with a call to
-`dataset.setReadOffset(2)`. This will immediately emit a new state that
-looks like this:
+Let's say the we change our viewport to item 2 in our UI. We want to tell impagination to move the read head to offset 2 with a call to `dataset.setReadOffset(2)`. This will immediately emit a new `state` that looks like this:
 
 ```
                  Read
@@ -198,11 +205,11 @@ looks like this:
      <──────────Load Horizon──────────>
                    ┃
                    ▼
-              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-               0 1 2 3 4 * * * * * ** ** ** ** ** xx xx xx xx xx xx xx xx xx xx│
-              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
-              │         │         │              │              │
-             p0        p1        p2             p3             p4
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  ─ ─ ─ ─ ─ ─ ── ─ ┐
+               0 1 2 3 4 * * * * *  * * * * *   xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─  ◇ ─ ─ ─ ─ ─ ─  ┘
+              │         │         │            │              │
+             p0        p1        p2            p3             length = 20
 ```
 
 You'll notice that the page at offset p2 has now been requested because
@@ -219,11 +226,11 @@ the dataset emits this state:
      <──────────Load Horizon──────────>
                    ┃
                    ▼
-              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-               0 1 2 3 4 * * * * * 10 11 12 13 14 xx xx xx xx xx xx xx xx xx xx│
-              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  ─ ─ ─ ─  ── ─ ── ─ ┐
+               0 1 2 3 4 * * * * * 10 11 12 13 14 xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─  ◇ ─ ─ ─ ─ ─ ─  ┘
               │         │         │              │              │
-             p0        p1        p2             p3             p4
+             p0        p1        p2             p3              length = 20
 ```
 
 In this way, impagination is resilient to the order of network
@@ -233,12 +240,12 @@ states.
 
 ```javascript
 //records on p2 are now available
-record = state.get(10);
+record = state.getRecord(10);
 record.isResolved //=> true
 record.content //=> 10
 
 //records on p1 are still pending
-record = state.get(7);
+record = state.getRecord(5);
 record.isResolved //=> false
 record.isPending //=> true
 record.content //=> null
@@ -250,16 +257,9 @@ We fetch records using an immutable style, but we often require filtering by mut
 
 Here we filter by records whose content contains an even number
 ```javascript
-import { Dataset } from 'impagination';
-
-let state = null;
-
-let dataset = new Dataset({
-  // . . . 
+let dataset = new Dataset({ ...
   // filter() function which returns only _even_ records
-  // when calling `refilter` on the dataset
   filter: function(content) { return content % 2 === 0 }
-  // . . . 
 });
 ```
 
@@ -271,24 +271,26 @@ let dataset = new Dataset({
      <──────────Load Horizon──────────>
                    ┃
                    ▼
-              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-               0   2   4 * * * * * ** ** ** ** ** xx xx xx xx xx xx xx xx xx xx│
-              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─◇─ ─ ─ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─ ─
+              ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  ─ ─ ─ ─  ── ─ ── ─ ┐
+               0   2   4 * * * * * ** ** ** ** ** xx xx xx xx xx│
+              ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ◇ ─ ─ ─ ─ ─ ─  ◇ ─ ─ ─ ─ ─ ─  ┘
               │         │         │              │              │
-             p0        p1        p2             p3             p4
+             p0        p1        p2             p3              length = 18
 ```
 
 ```javascript
 // Finding even numbered records
-record = state.get(1);
+record = state.getRecord(1);
 record.isResolved //=> true
+record.page.offset //=> 0
 record.content //=> 2
-state.length //=> 23 (stats.totalPages: 5, pageSize: 5, rejected records by filter: 2)
+state.length //=> 18 (stats.totalPages: 4, pageSize: 5, rejected records by filter: 2)
 
 //records on p1 are still pending
-record = state.get(3); // The record at index 3 now exists on p1
+record = state.getRecord(3); // The record at index 3 now exists on p1
 record.isResolved //=> false
 record.isPending //=> true
+record.page.offset //=> 1
 record.content //=> null
 ```
 
@@ -298,8 +300,7 @@ In the mutable style of reactivity, you listen to events that report
 what changed about a datastructure, and then you're left to realize
 the implications of that change in your internal data structures (such
 as changing a record from `isPending` to `isResolved`). By contrast,
-Impagination uses an immutable style in which can be an initial source
-of confusion if you aren't familiar with it.
+Impagination uses an immutable style.
 
 In Impagination, each event __is__ the fully formed datastructure *in
 its entirety*. This eliminates all guesswork and ambiguity from what
@@ -313,8 +314,7 @@ properly even if you discard references to all other states and the
 dataset object itself. Furthermore, altering them will have no effect
 on neither prior nor subsequent states.
 
-If you are unfamiliar with an immutable style this may seem strange to you. You
-might be asking yourself: Is it not wasteful to recreate an *entire* potentially
+You may be asking, is it not wasteful to recreate an *entire* potentially
 infinite data structure with every state transition? The answer is
 that each state is lazy and stores as little information as it needs
-to provide its API.
+to provide its API. The `state` contains lazy array interfaces for `pages` and `records`.

@@ -1,6 +1,6 @@
 {
   "name": "impagination",
-  "version": "0.2.3",
+  "version": "1.0.0-alpha.3",
   "description": "Put the fun back in asynchronous, paginated datasets",
   "main": "./lib/dataset.js",
   "jsnext:main": "./src/dataset.js",
@@ -28,6 +28,7 @@
     "rsvp": "^3.1.0"
   },
   "dependencies": {
-    "babel-runtime": "^5.8.25"
+    "babel-runtime": "^5.8.25",
+    "binary-search-tree": "^0.2.6"
   }
 }

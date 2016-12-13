@@ -23,10 +23,20 @@ class UnrequestedPage {
 
   get records(){
     if (!this._records) {
-      this._records = this.data.map(function (content, index) {
-        return new Record(this, content, index);
-      }, this);
+      let records = this.data
+        .map((content, index) => {
+          return new Record(this, content, index);
+        });
+
+      if (this.isResolved) {
+        this._records = records.filter((record, index, arr) => {
+          return this.filterCallback(record.content, index, arr);
+        });
+      } else {
+        this._records = records;
+      }
     }
+
     return this._records;
   }
 
@@ -66,9 +76,8 @@ class PendingPage extends UnrequestedPage {
 class ResolvedPage extends PendingPage {
   constructor(pending, data, filterCallback) {
     super(pending);
-    this.unfilteredData = data;
     this.filterCallback = filterCallback || function() {return true;};
-    this.data = this.unfilteredData.filter(this.filterCallback);
+    this.data = data;
   }
   get isPending() { return false; }
   get isResolved() { return true; }
