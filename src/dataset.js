@@ -52,6 +52,7 @@ export default class Dataset {
       pageSize: this.state.pageSize,
       loadHorizon: this.state.loadHorizon,
       unloadHorizon: this.state.unloadHorizon,
+      filter: attrs.filter,
       stats: this.state.stats,
       readOffset: undefined
     });
