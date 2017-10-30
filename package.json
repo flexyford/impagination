@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "babel-runtime": "^5.8.25",
-    "binary-search-tree": "^0.2.6"
+    "binary-search-tree": "^0.2.6",
+    "util": "^0.10.3"
   }
 }
