@@ -84,6 +84,21 @@ describe("Pages Interface State ", function() {
           expect(record.page.offset).to.equal(0);
         });
 
+        describe("calling Javascript Array methods", function() {
+          it("responds to accessor method 'slice'", function() {
+            expect(state.slice() instanceof Array).to.be.true;
+
+            let bounds = [];
+            expect( state.slice(...bounds).length ).to.equal(10);
+
+            bounds = [0, 100];
+            expect( state.slice(...bounds).length ).to.equal(10);
+
+            bounds = [100, 1000];
+            expect( state.slice(...bounds).length ).to.equal(0);
+          });
+        });
+
         describe("advancing the read offset", function() {
           beforeEach(function() {
             state = state.setReadOffset(35);
